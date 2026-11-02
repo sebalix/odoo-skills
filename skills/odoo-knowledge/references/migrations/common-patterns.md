@@ -55,6 +55,10 @@ move from one module to another, re-attribute their XML ids so the
 upgrade reuses the existing records instead of dropping columns/tables
 and creating duplicates.
 
+- Inventory the moved XML ids from the local production database if any
+  (`ir_model_data` rows owned by the sending module), not from the data files:
+  reflection ids (`model_*`, `field_*`, `selection__*`) and ACLs declared
+  in CSV never appear in XML files.
 - Re-attribute from the **receiving** module, BEFORE its data files
   load: the sending module loads after its dependencies, so its own
   migration runs too late — the duplicate is created already. Use the
@@ -80,6 +84,11 @@ and creating duplicates.
   (`_process_end` never garbage-collects them) but still require
   re-attribution — the receiver's data load would create a duplicate
   otherwise.
+- `noupdate` protects on module *update* only: at install, all data
+  files load (`mode='init'`) and re-attributed records get their
+  file-defined fields reset to the file values. Before deploying a move
+  into a new module, diff each moved record against the receiver's data
+  file and encode the production manual overrides in that file.
 - Keeping fallback entries in the sending module's migration is
   harmless: on regular upgrades both branches no-op (the receiver
   renamed the rows already), and on selective updates (`-u sender`
@@ -87,14 +96,22 @@ and creating duplicates.
 
 ## Verifying an upgrade that moves records
 
-Upgrade a copy of the production database, never production itself,
-and assert:
+Upgrade a copy of the production database, never production itself.
+Trigger the upgrade with every version-bumped module listed in `-u`
+(or `--update all`): a bumped dependency is not upgraded implicitly,
+and its migration silently never runs. Then assert:
 
 - One record per moved xmlid, under its new module, with the same
   `res_id` and the **original `create_date`**: a recent date means the
   record was re-created — the re-attribution failed.
 - No stale xmlid left under the sending module for the moved records.
 - Business data intact: row counts and column values unchanged.
+- Full record content of every moved record identical, apart from
+  intended changes: compare whole rows (`row_to_json`) including each
+  translation language of translatable fields — not just `res_id`
+  and `create_date`.
+- Whole-table diff of every affected table before/after, to catch
+  unintended changes outside the moved records.
 - A second update run is a no-op (idempotent).
 - Standalone `-i <module>` on a fresh database, for any module whose
   data files gained or lost cross-module references: undeclared

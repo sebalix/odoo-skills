@@ -77,3 +77,7 @@ list of ids. Nothing hits the database until the query is needed.
 - Overrides do not repeat the docstring of the overridden method: the
   base owns the documentation — override-specific, non-obvious notes
   go in comments.
+- A field re-declared only to tweak attributes (`groups=""`, `readonly`,
+  ...) carries a comment starting "Override to ..." stating what is
+  changed and why — the bare declaration is meaningless without its
+  intent.

@@ -26,6 +26,9 @@ How Odoo tests should be organized and written.
 
 ## Test data
 
+- Run tests on a fresh database built by module installs, never on a
+  restored production dump: dumps carry production-specific state
+  (customer configuration, real records) that makes failures misleading.
 - Create the data each test needs; never rely on demo data (not installed
   by default from 19.0 on — see `versions/19.0.md`).
 - Build the minimal record set that exercises the behavior: heavy setup

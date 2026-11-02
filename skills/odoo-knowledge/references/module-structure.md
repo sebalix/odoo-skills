@@ -76,6 +76,9 @@ my_module/
 
 - Depend on the smallest set of modules that provides what you actually use.
   Depend on the module that actually defines the objects you extend.
+- Follow the std layering direction: workflow modules depend on
+  master-data modules, never the reverse (sale, stock, account all
+  depend on product).
 - Glue code between two optional modules belongs in a separate module
   depending on both, so either can be installed without the other.
 - `auto_install: True` is only for glue modules that are meaningless
@@ -103,6 +106,9 @@ my_module/
   the flow that triggers it: a mail template on `stock.picking` lives in
   the stock module, a template on `project.project` in the project
   module.
+- When a resource moves to another module, move it whole — field,
+  views, ACLs and test fixtures together; the sender keeps nothing
+  half-moved.
 - Code never mentions a sibling module it does not depend on — not even
   in comments and docstrings. A hook docstring states the contract and
   the default behavior, and says it can be overridden; it never names

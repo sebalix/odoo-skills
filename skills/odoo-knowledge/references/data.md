@@ -42,8 +42,10 @@ Odoo practice: check existing modules when unsure.
   setup once in a shared function, called from both the hook and the
   migration script on the same side of the data load
   (`{pre,post}_init_hook` with its `{pre,post}-migrate.py` counterpart).
-  The hook functions live in a `hooks.py` at module root, imported from
-  `__init__.py` (manifest hook names resolve as module attributes); keep
+  The hook functions live in a `hooks.py` at module root, imported as
+  functions from `__init__.py` (`from .hooks import pre_init_hook` —
+  manifest hook names resolve as package attributes, so importing the
+  module alone is not enough); keep
   the shared code in `models/` only when the business code also uses it
   — not only the migration. Make the function idempotent — guard on
   existing records/parameters so databases in any state converge to the
