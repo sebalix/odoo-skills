@@ -15,11 +15,23 @@ constraints) follows standard Odoo practice: check modern core modules and
 
 ## Command
 
-- Write relational fields with the `Command` named constants
-  (`from odoo import Command`, available since 15.0):
-  `Command.set`, `Command.clear`, `Command.link`, `Command.unlink`,
-  `Command.create` — never raw `(6, 0, [...])` tuples in new or
-  migrated code.
+- Write relational fields with the `Command` helpers
+  (`from odoo import Command`, available since 15.0; the class moved
+  to `odoo.orm.commands` in 19.0 but the import stays the same):
+  `Command.create(vals)`, `Command.update(id, vals)`,
+  `Command.delete(id)`, `Command.link(id)`, `Command.unlink(id)`,
+  `Command.clear()`, `Command.set(ids)` — never raw `(6, 0, [...])`
+  tuples in new or migrated code. Exceptions: tuples are the only
+  option on 14.0 and earlier, and remain required over RPC
+  (helpers are not serializable).
+- Helper → raw tuple, to recognize and replace when porting:
+  `create` → `(0, 0, vals)`, `update` → `(1, id, vals)`,
+  `delete` → `(2, id, 0)`, `unlink` → `(3, id, 0)`,
+  `link` → `(4, id, 0)`, `clear` → `(5, 0, 0)`,
+  `set` → `(6, 0, ids)`.
+- When reading commands (e.g. inspecting `vals` in a `write`
+  override), compare the first element against the constants
+  `Command.CREATE`, `Command.LINK`, ... instead of magic numbers.
 
 ## Domains
 
@@ -29,6 +41,14 @@ constraints) follows standard Odoo practice: check modern core modules and
   (shared records disappear from the selection), and do not spell out
   the equivalent `['|', ('company_id', '=', False), ('company_id', '=',
   company_id)]`.
+- Since 19.0, domains have a dedicated object:
+  `from odoo.fields import Domain`. Build one from a list
+  `Domain([...])` or a single condition `Domain('field', '=', value)`,
+  and combine with `&`, `|`, `~`; `Domain.AND` / `Domain.OR` replace
+  `expression.AND` / `expression.OR`, `Domain.TRUE` / `Domain.FALSE`
+  replace `TRUE_LEAF` / `FALSE_LEAF`. Objects are immutable, and plain
+  lists/tuples are still accepted wherever a domain is expected — they
+  remain the only option on 18.0 and earlier.
 
 ## Query object
 
