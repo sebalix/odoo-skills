@@ -29,7 +29,7 @@ description: Review Odoo module code, diffs, or pull requests for correctness, s
 - Security: `ir.model.access.csv` complete, `ir.rule` where multi-company or
   record isolation applies, no unparameterized SQL, `sudo()` justified.
 - Views: inheritance via xpath, unique view ids, `groups` set where required.
-- User-facing strings translatable.
+- User-facing strings translatable; list values passed to `env._()` unjoined.
 - New behavior covered by tests.
 - Layering: resources placed with the model they are bound to (mail
   template on `stock.picking` → stock module); no mention of

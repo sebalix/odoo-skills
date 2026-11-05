@@ -1,9 +1,9 @@
 # ORM
 
-House rules for environment, sudo, domains, `Command`, and transaction
-handling. Everything else about the ORM (decorators, computed fields,
-constraints) follows standard Odoo practice: check modern core modules and
-`versions/` when unsure.
+House rules for environment, translations, sudo, domains, `Command`, and
+transaction handling. Everything else about the ORM (decorators, computed
+fields, constraints) follows standard Odoo practice: check modern core
+modules and `versions/` when unsure.
 
 ## Environment
 
@@ -12,6 +12,15 @@ constraints) follows standard Odoo practice: check modern core modules and
   `self._context`) are removed — see `versions/`.
 - Never mutate a context or environment in place: build a new one with
   `with_context()` / `with_user()` / `sudo()` and use that recordset.
+
+## Translations
+
+- Never pre-join a collection into a translated message
+  (`", ".join(items)`, `" and ".join(items)`): the separator and final
+  conjunction are language-specific. Keep a placeholder in the msgid and
+  pass the collection itself; use the framework's localized list
+  formatter where available (`format_list`, or `env._` on 19.0+) — see
+  `versions/` for the API per version.
 
 ## Command
 

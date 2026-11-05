@@ -11,7 +11,7 @@ outlines and are pending content.
 | File | Read when... | Status |
 | ---- | ------------ | ------ |
 | `module-structure.md` | Creating a module, reviewing layout/manifest/dependencies | done |
-| `orm.md` | ORM: environment, sudo, transactions, overrides (house rules only) | done |
+| `orm.md` | ORM: environment, translations, sudo, transactions, overrides (house rules only) | done |
 | `security.md` | Sweep rules: sudo, public methods, related fields, raw SQL, domain injection, secrets | done |
 | `data.md` | Data files: noupdate records, hooks, per-company records (house rules only) | done |
 | `testing.md` | Writing or reviewing tests (organization and content; running them is project-level) | done |
