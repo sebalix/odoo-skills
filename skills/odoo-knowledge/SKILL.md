@@ -13,6 +13,7 @@ conventions.
 | -------------- | ---- |
 | Module layout, manifests, dependencies | `references/module-structure.md` |
 | Models, fields, computed methods, ORM, translations | `references/orm.md` |
+| XML/QWeb views (forms, lists, templates, inheritance) | `references/views.md` |
 | Access rights, record rules, raw SQL | `references/security.md` |
 | XML data files, noupdate, demo data | `references/data.md` |
 | Tests | `references/testing.md` |

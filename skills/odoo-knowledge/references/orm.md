@@ -1,6 +1,6 @@
 # ORM
 
-House rules for environment, translations, sudo, domains, `Command`, and
+Rules for environment, translations, sudo, domains, `Command`, and
 transaction handling. Everything else about the ORM (decorators, computed
 fields, constraints) follows standard Odoo practice: check modern core
 modules and `versions/` when unsure.

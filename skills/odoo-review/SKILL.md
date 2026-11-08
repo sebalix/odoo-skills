@@ -13,7 +13,9 @@ description: Review Odoo module code, diffs, or pull requests for correctness, s
    version rules apply; read the odoo-knowledge version reference for it.
 3. Check each file in the diff against the applicable rules. Skip style
    issues a linter would catch (pre-commit, flake8, eslint) — focus on what
-   tools cannot check.
+   tools cannot check. The rules are correctness/best-practice rules, not
+   project-specific conventions: they apply to any code under review,
+   including community PRs and client projects.
 4. Classify every finding:
    - **Blocker**: security hole, data corruption risk, crash, broken behavior.
    - **Should-fix**: convention violation, maintainability or performance issue.

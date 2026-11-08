@@ -1,6 +1,6 @@
 # Data Files
 
-House rules for Odoo data files — only the decisions an agent cannot infer
+Rules for Odoo data files — only the decisions an agent cannot infer
 from Odoo source code, because the source itself is inconsistent. Everything
 else (file formats, CSV conventions, demo data placement) follows standard
 Odoo practice: check existing modules when unsure.

@@ -1,6 +1,6 @@
 # Security
 
-House rules for the security mistakes an agent is likely to make and the
+Rules for the security mistakes an agent is likely to make and the
 ecosystem's own code does not consistently answer. ACLs, record rules, and
 controller auth follow standard Odoo practice: check modern core modules
 when unsure.

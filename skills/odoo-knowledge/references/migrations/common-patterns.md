@@ -44,6 +44,10 @@ manifest dependency, never business code.
 - Records: `delete_records_safely_by_xml_id` (removes the record and
   everything pointing at it), `safe_unlink`, `chunked`,
   `update_field_multilang`.
+- Website COW views: `cow_templates_mark_if_equal_to_upstream` in the
+  pre-migration + `cow_templates_replicate_upstream` in the
+  post-migration — keep website-specific qweb copies in sync when
+  their generic view changes or moves (see "Moving website views").
 - Schema introspection: `openupgradelib.openupgrade_tools`
   (`table_exists`, `column_exists`, ...). Version-specific helpers live
   in `openupgradelib.openupgrade_140` … `openupgrade_180`.
@@ -94,6 +98,74 @@ and creating duplicates.
   renamed the rows already), and on selective updates (`-u sender`
   alone) the plain renames apply.
 
+## Moving website views (COW copies)
+
+Apply this when a moved qweb view has website-specific copies: rows in
+`ir_ui_view` with `website_id` set and the generic view's `key`. COW
+copies have no `ir.model.data` entry, so `rename_xmlids` cannot touch
+them. Left alone they keep the old key and old arch; the update then
+creates a fresh specific copy of the renamed view and both copies apply
+at the same priority — pages crash or misbehave at render time.
+
+Clean flow, receiver-side (see Moving records between modules), in the
+receiving module's `pre-migration`:
+
+1. Rename the generic view's xmlid (`rename_xmlids`). The stored `key`
+   is not recomputed: it keeps the old value, which is what shields the
+   copies during the data load.
+2. Mark the identical copies:
+   `openupgrade.cow_templates_mark_if_equal_to_upstream(env.cr)` marks
+   every specific copy whose `arch_db` equals its generic's. It matches
+   copies to their generic by `key`, so run it now, while the copies
+   still carry the old key, before any re-keying.
+3. Re-key every copy — customized ones too — to the key of the
+   receiving module's xmlid for the generic view:
+
+   ```sql
+   UPDATE ir_ui_view
+   SET key = '<new_key>' WHERE key = '<old_key>'
+     AND website_id IS NOT NULL;
+   ```
+
+4. In `post-migration`, run
+   `openupgrade.cow_templates_replicate_upstream(env.cr)`: it resets the
+   marked copies' `arch_db`/`inherit_id` from the updated generic (raw
+   SQL, no view validation involved).
+
+Why it works: the generic's stale stored key shields the copies from
+load-time propagation (`_load_records_write`), and
+`_create_all_specific_views` then matches the re-keyed copy — no
+duplicate is created.
+
+Customized copies (arch differing from their generic at marking time)
+are re-keyed like the others but skipped by the replicate: their custom
+arch is preserved but may be outdated. After the upgrade, list them
+(specific copies whose `arch_db` differs from their generic's) and
+decide by hand: port the customization into the receiver's data, or
+drop it.
+
+Fallback when the clean flow cannot run (e.g. the move already shipped
+in a released migration): archive the stale copies (`active = False`)
+in a `pre-migration` — they are excluded from every inheritance tree,
+and the update creates a fresh specific copy carrying the new arch. The
+remaining generic + specific pair is the standard COW shape; future
+updates propagate to the copy by key.
+
+End state: one generic view under the receiving module and exactly one
+specific copy per website, all on the new key, nothing left on the old
+key. Render the affected pages in every active language (see Verifying).
+
+Gotchas that bite while moving views:
+
+- `ir_ui_view.key` is a plain stored field: raw-SQL xmlid renames do not
+  recompute it, and the stale value drives both the load-time COW
+  propagation and `_create_all_specific_views`.
+- Update-time validation (`_check_xml` → `_get_combined_arch`) builds
+  combined archs WITHOUT the views of modules not loaded yet
+  (`_filter_loaded_views`): a positional xpath valid only after a
+  sibling view from a later-loading module applied crashes the
+  update itself. Prefer structural xpaths.
+
 ## Verifying an upgrade that moves records
 
 Upgrade a copy of the production database, never production itself.
@@ -112,6 +184,10 @@ and its migration silently never runs. Then assert:
   and `create_date`.
 - Whole-table diff of every affected table before/after, to catch
   unintended changes outside the moved records.
+- Render the affected pages (portal, website) in EVERY active language
+  before and after the upgrade, and diff the HTML (normalize csrf
+  tokens and asset bundle hashes): translated archs break
+  independently of the English one, and English test databases hide it.
 - A second update run is a no-op (idempotent).
 - Standalone `-i <module>` on a fresh database, for any module whose
   data files gained or lost cross-module references: undeclared

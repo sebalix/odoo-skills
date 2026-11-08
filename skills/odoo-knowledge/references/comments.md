@@ -1,6 +1,6 @@
 # Comments and Docstrings
 
-House rules for what a linter cannot judge: the *usefulness* of a
+Rules for what a linter cannot judge: the *usefulness* of a
 comment or docstring. Style and formatting are not covered — run the
 tools instead.
 
