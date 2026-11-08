@@ -65,7 +65,7 @@ my_module/
 
 - Modules: `snake_case`. Private/company modules carry a short prefix
   (`custom_stock`).
-- Module are named after what they extend:
+- Modules are named after what they extend:
   `custom_sale`, `custom_stock`, `custom_sale_stock`, ...
 - View xml_ids: `<model>_view_<type>` (`res_partner_view_form`); actions and
   menus follow the same pattern (`res_partner_action`, `res_partner_menu`).
@@ -83,7 +83,7 @@ my_module/
   depending on both, so either can be installed without the other.
 - `auto_install: True` is only for glue modules that are meaningless
   unless both dependencies are installed.
-- Verify each dependency exists in the target version
+- Verify each dependency exists in the target version.
 
 ## Multi-module projects
 
@@ -93,7 +93,7 @@ my_module/
   must not import Python from a sibling module it does not depend on.
 - Extract early: splitting a module out is cheap at project start and
   expensive once many depend on it.
-- /!\ Avoid modules depending on multiple big functional Odoo modules
+- Avoid modules depending on multiple big functional Odoo modules
   (e.g. `sale` + `mrp` + `stock` + `hr`...). Features have to be split in
   different modules, with loose coupling (through hooks for instance) making
   them working together.

@@ -24,12 +24,14 @@ description: Perform a systematic audit of an Odoo project or module set — arc
 
    - Module structure & dependencies
    - Models & ORM
+   - Views (xml, qweb)
    - Security
    - Data files
    - Tests
 
 4. **Upgrade readiness**: assess against the odoo-knowledge version
-   reference for the next Odoo version, and its common migration patterns.
+   reference for the next Odoo version, its module checks
+   (`migrations/common-patterns.md`) and `migration-scripts.md`.
 5. **Report**: produce the markdown audit report following
    `references/report-template.md` and deliver it together with
    `module-inventory.csv` (see Deliverables).

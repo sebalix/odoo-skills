@@ -166,7 +166,7 @@ End state: one generic view under the receiving module and exactly one
 specific copy per website, all on the new key, nothing left on the old
 key. Render the affected pages in every active language (see Verifying).
 
-Gotchas that bite while moving views:
+### Gotchas that bite while moving views
 
 - `ir_ui_view.key` is a plain stored field: raw-SQL xmlid renames do not
   recompute it, and the stale value drives both the load-time COW
