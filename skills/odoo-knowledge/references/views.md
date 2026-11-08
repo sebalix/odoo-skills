@@ -7,6 +7,13 @@ core modules and `versions/<X>.md` when unsure.
 
 ## XPath / inheritance
 
+- Prefer direct element targeting over `<xpath>`: when the target is
+  identified by its own tag and attributes, inherit it directly
+  (`<field name="custom_field" position="after">...`,
+  `<group name="info" position="inside">...`). Reserve `<xpath>` for
+  what a plain element cannot express — indexes, parent or sibling
+  axes, elements with no unique attributes — and keep those xpaths
+  structural (next rule).
 - Never match elements on translatable content (element text,
   translatable attribute values): archs are translated per language,
   so a match that holds in English breaks in every other language at

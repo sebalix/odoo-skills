@@ -30,7 +30,7 @@ description: Review Odoo module code, diffs, or pull requests for correctness, s
   computed/inverse pairs coherent.
 - Security: `ir.model.access.csv` complete, `ir.rule` where multi-company or
   record isolation applies, no unparameterized SQL, `sudo()` justified.
-- Views: inheritance via xpath, unique view ids, `groups` set where required. Never match translatable content in xpaths (see odoo-knowledge `views.md`).
+- Views: prefer direct element targeting over xpath for simple targets; never match translatable content in xpaths; unique view ids; `groups` set where required (see odoo-knowledge `views.md`).
 - User-facing strings translatable; list values passed to `env._()` unjoined.
 - New behavior covered by tests.
 - Layering: resources placed with the model they are bound to (mail
