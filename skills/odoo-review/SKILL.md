@@ -46,4 +46,4 @@ description: Review Odoo module code, diffs, or pull requests for correctness, s
 - Diffs that move records between modules: XML ids re-attributed from
   the receiving module before its data load; migration folder version
   strictly above any version already released (see odoo-knowledge
-  `migrations/common-patterns.md`).
+  `migration-scripts.md`).

@@ -15,6 +15,7 @@ outlines and are pending content.
 | `views.md` | Writing or inheriting XML/QWeb views (xpath rules, templates) | done |
 | `security.md` | Sweep rules: sudo, public methods, related fields, raw SQL, domain injection, secrets | done |
 | `data.md` | Data files: noupdate records, hooks, per-company records | done |
+| `migration-scripts.md` | Writing migration scripts (`migrations/`), moving records between modules — refactoring or version migration | done |
 | `testing.md` | Writing or reviewing tests (organization and content; running them is project-level) | done |
 | `comments.md` | Writing or reviewing comments and docstrings (usefulness only) | done |
 
@@ -22,7 +23,7 @@ outlines and are pending content.
 
 | File | Read when... |
 | ---- | ------------ |
-| `migrations/common-patterns.md` | Migrating to any version |
+| `migrations/common-patterns.md` | Module checks when migrating a module to a new Odoo version |
 | `versions/<X>.md` | Targeting version X, or reviewing code against version X rules |
 
 ## Conventions used in this knowledge base

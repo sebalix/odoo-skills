@@ -16,6 +16,7 @@ conventions.
 | XML/QWeb views (forms, lists, templates, inheritance) | `references/views.md` |
 | Access rights, record rules, raw SQL | `references/security.md` |
 | XML data files, noupdate, demo data | `references/data.md` |
+| Migration scripts (`migrations/`), moving records between modules | `references/migration-scripts.md` |
 | Tests | `references/testing.md` |
 
 When unsure which area a task touches, read `references/index.md` first — it
@@ -27,5 +28,6 @@ Version-specific guidance:
    or the `odoo/odoo` git remote) — it decides which rules apply.
 2. For version-specific work, read `references/versions/<version>.md`.
 3. For migrations between versions, read
-   `references/migrations/common-patterns.md` plus every intermediate
+   `references/migrations/common-patterns.md`,
+   `references/migration-scripts.md`, plus every intermediate
    `versions/*.md` between source and target.

@@ -21,7 +21,7 @@ Odoo practice: check existing modules when unsure.
   existing installs keep the old external id and gain a duplicate on
   update. Moving a noupdate record to another module is the exception —
   it requires re-attribution from the receiving module, before its data
-  files load; see `migrations/common-patterns.md`.
+  files load; see `migration-scripts.md`.
 
 ## Init hooks and migration scripts
 
@@ -59,4 +59,4 @@ Odoo practice: check existing modules when unsure.
   `from openupgradelib import openupgrade`) for data work in hooks and
   migration scripts — renames, value mapping, safe deletions. It is a
   pip-level tool, never a manifest dependency, and does not belong in
-  business code. Patterns: see `migrations/common-patterns.md`.
+  business code. Patterns: see `migration-scripts.md`.
