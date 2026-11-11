@@ -1,6 +1,13 @@
 ---
 name: odoo-knowledge
-description: Knowledge base of rules and conventions for Odoo development — module structure, models and ORM, views, security, data files, migration scripts, testing, and version-specific deltas. Use for ANY task that touches Odoo code, before writing, changing, or reviewing it: models, fields, views, manifests, security files, data files, migration scripts, tests, version migrations, and module refactorings such as moving records between modules. Complements the task skills odoo-review, odoo-audit, and odoo-migrate.
+description: >
+  Knowledge base of rules and conventions for Odoo development — module structure,
+  models and ORM, views, security, data files, migration scripts, testing, and
+  version-specific deltas. Use for ANY task that touches Odoo code, before writing,
+  changing, or reviewing it: models, fields, views, manifests, security files, data
+  files, migration scripts, tests, version migrations, and module refactorings such
+  as moving records between modules. Complements the task skills odoo-review,
+  odoo-audit, and odoo-migrate.
 ---
 
 # Odoo knowledge base
