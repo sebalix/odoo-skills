@@ -1,9 +1,17 @@
 # ORM
 
-Rules for environment, translations, sudo, domains, `Command`, and
-transaction handling. Everything else about the ORM (decorators, computed
-fields, constraints) follows standard Odoo practice: check modern core
-modules and `versions/` when unsure.
+Rules for environment, translations, sudo, domains, `Command`, transaction
+handling, and computed fields. Everything else about the ORM (decorators,
+constraints) follows standard Odoo practice: check modern core modules and
+`versions/` when unsure.
+
+## Model declaration
+
+- **Model + mixin inheritance requires an explicit `_name`.** With a
+  multi-entry `_inherit` (e.g. `["my.model", "my.mixin"]`) and no `_name`,
+  `MetaModel` falls back to the **Python class name** →
+  `ValueError: The _name attribute MyClass is not valid` at `_auto_init`.
+  Single-string `_inherit` without `_name` extends in place and is fine.
 
 ## Environment
 
@@ -76,6 +84,37 @@ list of ids. Nothing hits the database until the query is needed.
   `query.order = ...`; check cheaply with `query.is_empty()`.
 - In `_search` overrides, modify and return the `Query` — do not force it
   into a list of ids and search again.
+
+## Computed fields
+
+Non-obvious behaviors verified against the Odoo source (18.0) — do not
+improvise here:
+
+- **Non-stored computed fields are not searchable.** Without a `search=`
+  implementation, the ORM logs
+  `"Non-stored field X cannot be searched"` and **silently drops the domain
+  leaf** (dummy leaf): filters and searches return wrong results without any
+  crash. If the field must be searchable, either store it, or implement
+  `search="_search_x"` returning a domain — the usual shape is raw SQL
+  collecting the matching ids, then `[('id', 'in', ids)]`
+  (see `_search_inherit_ids` in odoo/repository for the pattern).
+- **Recomputation does not cascade.** Records are *protected* while a
+  compute runs: the assignment in `Field.__set__` skips the `modified()`
+  propagation for them ("no business logic, no recomputation"), and
+  `env.add_to_compute(field, records)` marks only `field` itself, never its
+  dependents. A manual refresh of a stored computed field must therefore
+  also call `records.modified([field.name])` to mark the dependent fields —
+  the automatic cascade only happens from real `write()` calls, where the
+  trigger tree marks the whole transitive dependency chain at once.
+- **Extending a compute's dependencies**: override the compute method in the
+  inheriting model with additional `@api.depends(...)` — Odoo **unions** the
+  dependencies of every implementation found in the MRO
+  (`Field.get_depends` → `resolve_mro`). The `depends=[...]` field parameter
+  takes priority over the decorators, when set.
+- Computed fields are `readonly` by default. Writing a stored computed field
+  requires an `inverse` (or `readonly=False`); the canonical way to force a
+  recomputation is `env.add_to_compute(field, records)` followed by
+  `env.flush_all()` — not a manual write.
 
 ## sudo
 

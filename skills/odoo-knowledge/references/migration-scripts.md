@@ -109,6 +109,52 @@ and creating duplicates.
   already reached production, bump the manifest and use the new
   version.
 
+## Schema changes and backfills
+
+- `pre-migrate` scripts run **before** the module's schema update: the
+  columns of newly added fields do not exist yet — an `UPDATE` touching
+  them crashes there (`UndefinedColumn`). Backfills of new columns belong
+  in `post-migrate`, or nowhere (see next rule).
+- A newly added **required field with a `default` needs no backfill
+  script**: the schema update initializes the column on existing rows with
+  the field's default (`_init_column`), whatever the stage. Only a required
+  field *without* default requires manual handling.
+- A leftover column from a renamed or removed field is harmless: the ORM
+  ignores unknown columns. No cleanup script is needed for it.
+
+### New computed stored fields on large tables
+
+Adding a computed+stored field schedules its computation on **all existing
+rows** during the upgrade (`_auto_init` marks the whole table when it
+creates the column), running the Python compute per batch — slow on
+millions of rows. To avoid it:
+
+1. `pre-migrate`: create the column with the `odoo.tools.sql` helpers — the
+   same ones the ORM uses (proper identifier quoting, `DEFAULT false` on
+   booleans). The registry does not know the new field yet at this stage,
+   so the SQL type is hardcoded:
+
+   ```python
+   from odoo.tools import sql
+
+   @openupgrade.migrate()
+   def migrate(env, version):
+       if not sql.column_exists(env.cr, "res_partner", "my_new_field"):
+           sql.create_column(env.cr, "res_partner", "my_new_field", "int4")
+   ```
+
+   The ORM then sees the column as existing and skips the computation
+   scheduling. Add the index with `sql.create_index()` when the field
+   declares `index=True`.
+2. `post-migrate`: fill it with a set-based SQL `UPDATE` reproducing the
+   compute logic, and `sql.set_not_null()` for a required field.
+
+Keep the compute method in place: it stays the source of truth for the
+future recomputations triggered by the field's dependencies. For a
+**required** computed field, create the column nullable, fill it, then set
+`NOT NULL` in `post-migrate` (a pre-created `NOT NULL` column would break
+on empty values).
+
 ## Moving website views (COW copies)
 
 Apply this when a moved qweb view has website-specific copies: rows in
