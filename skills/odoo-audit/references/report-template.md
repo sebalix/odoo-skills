@@ -15,8 +15,14 @@
 
 - Modules audited (custom vs. OCA/standard):
 - Out of scope:
-- Detailed inventory: `module-inventory.csv` — one row per module
-  (origin, upstream, LOC, availability, migration effort).
+- Not audited, tracking upstream: <!-- count of modules `Available` on
+  the target version without local modification; see their stub reports -->
+- Detailed inventory: `odoo-audit/module-inventory.csv` — one row per
+  module (origin, upstream, LOC, availability, migration effort).
+- Module reports: one file per module under `odoo-audit/`
+  (`OCA/`, `Others/`, `Specific/`, by origin) — full report for audited
+  modules, stub for modules tracking upstream. Link them here and in
+  the findings summary instead of duplicating their content.
 
 ### Inventory summary
 
@@ -33,12 +39,18 @@
 
 ## 3. Findings summary
 
-<!-- One table row per finding, grouped by severity. -->
+<!-- One row per module, linking its report; per-finding detail lives in
+     the module reports. Rows linking a stub (module tracking upstream)
+     carry — in the severity columns. -->
 
-| # | Severity | Area | Module | Finding | Evidence |
-|---|----------|------|--------|---------|----------|
+| Module | Report | Blockers | Should-fix | Nits | Migration effort |
+|--------|--------|----------|------------|------|------------------|
 
-## 4. Detailed findings per area
+## 4. Cross-cutting findings per area
+
+<!-- Findings that affect several modules, grouped by area — per-module
+     detail lives in the module reports. Write "No findings" explicitly
+     when an area is clean. -->
 
 ### 4.1 Module structure & dependencies
 ### 4.2 Models & ORM
@@ -49,14 +61,16 @@
 ### 4.7 Tests
 ### 4.8 Tooling coverage
 
-<!-- For each finding: description, evidence (file:line), impact, recommended fix. -->
+<!-- For each finding: description, evidence (file:line), impacted
+     modules, impact, recommended fix. -->
 
 ## 5. Upgrade readiness
 
 - Target version assessed:
 - Version deltas affecting this codebase:
-- Estimated migration effort: per-module days in `module-inventory.csv`;
-  summarize the main cost drivers (modules, deltas) and the total here.
+- Estimated migration effort: per-module days in
+  `odoo-audit/module-inventory.csv`; summarize the main cost drivers
+  (modules, deltas) and the total here.
 
 ## 6. Prioritized action plan
 

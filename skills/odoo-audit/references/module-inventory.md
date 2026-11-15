@@ -19,12 +19,32 @@ Whatever the source, the output CSV doubles as the input file for the next
 audit: when availability had to be resolved online, the result is in the
 file, and the next audit digests it instead of re-querying.
 
+## Module discovery
+
+Locate the modules in the current directory tree — the audit audits the
+code found on disk:
+
+```bash
+find . -name '__manifest__.py' \
+  -not -path '*/.git/*' -not -path '*/node_modules/*'
+```
+
+Each hit's parent directory is a module. Reconcile the hits with the
+user's list before computing anything:
+
+- Found on disk but not in the list → add a row and determine its origin
+  like any other module.
+- In the list but not found on disk → keep the row, note `not found on
+  disk` in `comment`; it gets no module report.
+- Several copies of the same technical name → ask the user which copy is
+  authoritative before auditing.
+
 ## Output format
 
-One file, `module-inventory.csv`, rows sorted by origin (in the order
-`odoo-core`, `odoo-enterprise`, `oca`, `third-party`, `custom`), then
-upstream, then technical name. See `inventory-template.csv` for the exact
-header and example rows.
+One file, `odoo-audit/module-inventory.csv`, rows sorted by origin (in
+the order `odoo-core`, `odoo-enterprise`, `oca`, `third-party`,
+`custom`), then upstream, then technical name. See
+`inventory-template.csv` for the exact header and example rows.
 
 | Column | Content |
 |--------|---------|
@@ -136,8 +156,13 @@ Estimate in days, rounded to the closest 0.5:
    modules get the full estimate.
 5. Record the rationale in `comment` (which deltas drove the number).
 
-## Feeding the markdown report
+## Feeding the markdown reports
 
-Per-origin totals for the report (module counts, LOC, days) come from this
-CSV; the markdown report references it instead of duplicating per-module
-rows.
+Per-origin totals for the global report (module counts, LOC, days) come
+from this CSV; the global report references it instead of duplicating
+per-module rows. Each module report header (availability, LOC, effort,
+path) is written from its CSV row — when the module audit revises a
+value, update the CSV row too so the two stay in sync. Modules
+`Available` on the target version without local modification get a stub
+report only — no migration work, they track upstream (the rubric's
+upstream discount).
