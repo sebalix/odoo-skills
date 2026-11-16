@@ -8,6 +8,7 @@ description: >
   files, migration scripts, tests, version migrations, and module refactorings such
   as moving records between modules. Complements the task skills odoo-review,
   odoo-audit, and odoo-migrate.
+compatibility: Standalone knowledge base; no skill dependencies.
 ---
 
 # Odoo knowledge base
@@ -25,6 +26,7 @@ conventions.
 | XML data files, noupdate, demo data | `references/data.md` |
 | Migration scripts (`migrations/`), moving records between modules | `references/migration-scripts.md` |
 | Tests | `references/testing.md` |
+| Comments and docstrings (usefulness, refactoring) | `references/comments.md` |
 
 When unsure which area a task touches, read `references/index.md` first — it
 maps the topic files.

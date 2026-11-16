@@ -1,6 +1,9 @@
 ---
 name: odoo-migrate
 description: Knowledge companion for migrating an Odoo module between versions — read the common migration patterns and the target version delta before porting code.
+compatibility: Requires the odoo-knowledge skill.
+metadata:
+  requires-skills: odoo-knowledge
 ---
 
 ## Workflow

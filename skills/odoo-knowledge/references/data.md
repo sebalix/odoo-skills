@@ -13,7 +13,8 @@ Odoo practice: check existing modules when unsure.
 - Keep code-owned records updateable (no noupdate): activities, server
   actions shipped as features — upgrades must be able to deliver
   improvements to them.
-- mail templates: it depends, better to ask the user
+- Mail templates: both behaviors exist in the ecosystem — decide with
+  the user.
 - `forcecreate` (defaults to `true` in noupdate mode) recreates a record
   the user deleted; set `forcecreate="false"` to respect deletions — rare,
   only for records users may legitimately remove.

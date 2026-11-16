@@ -1,6 +1,9 @@
 ---
 name: odoo-review
 description: Review Odoo module code, diffs, or pull requests for correctness, security, performance, and conventions. Use when asked to review Odoo code, or when a change touches Odoo models, views, security files, or manifests. For OCA migration/port PRs, prefer the odoo-review-oca-migration skill instead.
+compatibility: Requires the odoo-knowledge skill.
+metadata:
+  requires-skills: odoo-knowledge
 ---
 
 ## Workflow
@@ -25,24 +28,28 @@ description: Review Odoo module code, diffs, or pull requests for correctness, s
 
 ## Quick checklist
 
-- Manifest: version consistent, dependencies declared, license set.
+- Manifest: version consistent, dependencies declared, license set
+  (see odoo-knowledge `module-structure.md`).
 - Models: `@api.depends` complete, decorator order correct,
-  computed/inverse pairs coherent.
+  computed/inverse pairs coherent (see odoo-knowledge `orm.md`).
 - Security: `ir.model.access.csv` complete, `ir.rule` where multi-company or
-  record isolation applies, no unparameterized SQL, `sudo()` justified.
+  record isolation applies, no unparameterized SQL, `sudo()` justified
+  (see odoo-knowledge `security.md`).
 - Views: prefer direct element targeting over xpath for simple targets; never match translatable content in xpaths; unique view ids; `groups` set where required (see odoo-knowledge `views.md`).
-- User-facing strings translatable; list values passed to `env._()` unjoined.
-- New behavior covered by tests.
+- User-facing strings translatable; list values passed to `env._()`
+  unjoined (see odoo-knowledge `orm.md`).
+- New behavior covered by tests (see odoo-knowledge `testing.md`).
 - Layering: resources placed with the model they are bound to (mail
   template on `stock.picking` → stock module); no mention of
   non-dependency modules in code; hook docstrings document the contract
-  and default, never the overriding module.
+  and default, never the overriding module (see odoo-knowledge
+  `module-structure.md`).
 - Overrides call `super()` and return its result, or are pre-existing
   bodies marked `# Full override (no super())`; overrides do not
-  repeat the base docstring.
+  repeat the base docstring (see odoo-knowledge `orm.md`).
 - Comments: judge only the ones the change newly adds — comments moved
   with the code stay as they are; useless = restates adjacent code,
-  method names, or the docstring.
+  method names, or the docstring (see odoo-knowledge `comments.md`).
 - Diffs that move records between modules: XML ids re-attributed from
   the receiving module before its data load; migration folder version
   strictly above any version already released (see odoo-knowledge

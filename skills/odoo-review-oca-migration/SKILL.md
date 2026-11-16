@@ -1,6 +1,9 @@
 ---
 name: odoo-review-oca-migration
 description: Review OCA (Odoo Community Association) migration/port pull requests from a https://github.com/OCA/<repo>/pull/<number> URL — [MIG] full-module migrations and [FW]/[PORT]/[BACKPORT] commit ports made with git format-patch/cherry-pick. Verifies each ported commit against its source-branch original, checks adaptations against the target version's migration guide, audits completeness (missing/blacklisted commits), and runs the full OCA migration checklist (manifest version, copyright/authors, migrations folder, pre-commit, tests, CREDITS, CI). Produces an English report plus a paste-ready review comment. Use ONLY when the user asks to review an OCA migration/port PR or supplies such a URL, not to author one.
+compatibility: Requires the odoo-knowledge skill. Uses the GitHub CLI when available; ships fallbacks otherwise.
+metadata:
+  requires-skills: odoo-knowledge
 ---
 
 # Review an OCA migration / port pull request

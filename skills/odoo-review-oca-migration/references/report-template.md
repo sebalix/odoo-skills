@@ -23,6 +23,8 @@ Produce the report in English, following this structure:
 - [x] / [ ] items with evidence
 
 ## Findings
+<!-- Finer scale than odoo-review/odoo-audit (blocker / should-fix / nit):
+     Major/Minor split the should-fix tier — deliberate for PR reviews. -->
 ### Blocker
 ### Major
 ### Minor
