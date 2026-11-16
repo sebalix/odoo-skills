@@ -45,6 +45,22 @@ Adjust the path to wherever this repo lives. Every discovered config's
 `skills` array entries are combined, so this can be added alongside existing
 entries.
 
+### Optional: `odoo-auditor` subagent profile
+
+The `odoo-audit` skill runs one subagent per module (up to 4 in parallel).
+For a dedicated profile, copy `agents/odoo-auditor.md` to
+`.opencode/agents/odoo-auditor.md` (project) or
+`~/.config/opencode/agents/odoo-auditor.md` (global, OpenCode V2). The
+skill picks it up automatically when present and falls back to a
+general-purpose subagent otherwise.
+
+### Frontmatter metadata
+
+The `compatibility` and `metadata` fields in each skill's frontmatter are
+advisory: OpenCode accepts them but does not interpret them, and other
+coding agents ignore unknown fields. The skill bodies remain the source of
+truth for behavior.
+
 ### Ensuring the knowledge base is always loaded
 
 Skill activation is model-driven. To guarantee `odoo-knowledge` is loaded for

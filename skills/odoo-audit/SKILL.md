@@ -1,6 +1,11 @@
 ---
 name: odoo-audit
 description: Perform a systematic audit of an Odoo project or module set — architecture, security, data model, performance, and upgrade readiness. Use when asked to audit, assess, or run a health check on an Odoo codebase. For reviewing a single change or PR, use the odoo-review skill instead.
+compatibility: Requires the odoo-knowledge skill. Uses subagents when available (up to 4 in parallel); falls back to sequential inline audits otherwise.
+metadata:
+  requires-skills: odoo-knowledge
+  max-concurrency: "4"
+  recommended-subagent: odoo-auditor
 ---
 
 ## Workflow
@@ -18,8 +23,9 @@ description: Perform a systematic audit of an Odoo project or module set — arc
    (see `references/subagent-task.md`). Fallback only (no subagent
    capability, see step 3): read each area reference once before the
    loop.
-3. **Per-module audits through subagents**: prepare the work list from
-   the CSV, in CSV order:
+3. **Per-module audits through subagents**: create the deliverable tree
+   (`odoo-audit/` with the `OCA/`, `Others/`, `Specific/` folders) and
+   prepare the work list from the CSV, in CSV order:
 
    - `odoo-core` and `odoo-enterprise` modules are skipped — standard
      code, local modifications are flagged in the CSV `comment`
@@ -32,9 +38,11 @@ description: Perform a systematic audit of an Odoo project or module set — arc
    - Modules `To review` (available upstream but locally modified) are
      audited — they have merge work.
 
-   Then spawn one subagent per audited module, each running the task
-   template `references/subagent-task.md` filled with the module's
-   Context — at most **4 running concurrently**: launch a new one as
+   Then spawn one subagent per audited module using the **`odoo-auditor`**
+   agent profile if configured in the environment (falling back to a default
+   general-purpose subagent with a fast/mid-tier model if not defined), each
+   running the task template `references/subagent-task.md` filled with the
+   module's Context — at most **4 running concurrently**: launch a new one as
    each finishes, never two on the same module. Each subagent writes
    its own module report `odoo-audit/<Group>/<module>.md` (`OCA` for
    origin `oca`, `Others` for `third-party`, `Specific` for `custom`)

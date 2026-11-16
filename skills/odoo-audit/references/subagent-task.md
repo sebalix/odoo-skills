@@ -23,8 +23,10 @@ parallel, who writes what) live in the skill workflow.
 1. Read the module report template
    `<odoo-audit>/references/module-report-template.md` — the report
    follows it; the `<Group>` folder is given in the Context.
-2. Read the odoo-knowledge references for every area below, plus the
-   target version file (`versions/<target>.md`),
+2. Read the odoo-knowledge references for every area below — all
+   under `<odoo-knowledge>/references/` — plus the target version
+   file (`versions/<target>.md`) and every intermediate
+   `versions/*.md` between the project and target versions, then
    `migrations/common-patterns.md` and `migration-scripts.md`:
 
    - Module structure & dependencies — `module-structure.md`
@@ -43,7 +45,8 @@ parallel, who writes what) live in the skill workflow.
    version's breaks, and confirm or correct the effort from the Context
    following the migration effort rubric in
    `<odoo-audit>/references/module-inventory.md`.
-5. Write the report to the path given in the Context: findings with
+5. Create the report's parent directory if it does not exist, then
+   write the report to the path given in the Context: findings with
    severity (blocker / should-fix / nit) and `file:line` evidence; the
    effort estimate and its drivers close the Blocking points, consistent
    with the CSV values above.
