@@ -4,10 +4,10 @@ How Odoo tests should be organized and written.
 
 ## Organization
 
-- Tests live in `tests/`, named `test_<topic>.py` after the model or
-  behavior under test (`test_res_partner.py`).
-- One class per feature under test; one test method per behavior, named
-  `test_<action>__<expected_outcome>`.
+- Tests live in `tests/`, one test class per file: the file is named
+  `test_<topic>.py` after the model or behavior under test and holds that
+  single class (`test_res_partner.py` for `TestResPartner`).
+- One test method per behavior, named `test_<action>__<expected_outcome>`.
 - Inherit `BaseCommon` (`from odoo.addons.base.tests.common import
   BaseCommon`) as the default test base — core-provided since 16.0. It
   disables mail/tracking noise by default (`tracking_disable`,

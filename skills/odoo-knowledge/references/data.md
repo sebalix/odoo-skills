@@ -7,8 +7,13 @@ Odoo practice: check existing modules when unsure.
 
 ## `noupdate` policy
 
-- Wrap in `<data noupdate="1">` the records users are expected to own in
-  production: record rules, sequences, crons, operational defaults. An
+- Set `noupdate` at the level matching the records' lifecycle: on the
+  `<odoo>` root node when the whole file shares one lifecycle, or on
+  `<data>` blocks to mix lifecycles within a single file. Do not wrap the
+  whole content of a file in a single `<data>` block: `<odoo
+  noupdate="1">` is its exact equivalent and the form expected in OCA
+  repositories. Records users are expected to own in production are
+  noupdate: record rules, sequences, crons, operational defaults — an
   upgrade must never reset user-maintained or system-maintained values.
 - Keep code-owned records updateable (no noupdate): activities, server
   actions shipped as features — upgrades must be able to deliver
@@ -23,6 +28,17 @@ Odoo practice: check existing modules when unsure.
   update. Moving a noupdate record to another module is the exception —
   it requires re-attribution from the receiving module, before its data
   files load; see `migration-scripts.md`.
+
+## xml_id conventions
+
+- A record declared in the current module takes no module prefix in its
+  `id`: `<record id="my_record">`, not `<record id="my_module.my_record">`
+  (`xml-redundant-module-name` OCA check; applies to `<record>` and
+  `<menuitem>`). This includes re-declaring a record defined in another
+  data file of the same module (e.g. appending to a many2many declared in
+  an earlier file). The module prefix is only meaningful in cross-module
+  references: `ref="other_module.some_record"` or
+  `ref('other_module.some_record')`.
 
 ## Init hooks and migration scripts
 
