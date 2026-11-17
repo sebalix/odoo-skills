@@ -40,6 +40,12 @@ manifest dependency, never business code.
   (`table_exists`, `column_exists`, ...). Version-specific helpers live
   in `openupgradelib.openupgrade_140` … `openupgrade_180`.
 
+## Script structure
+
+Keep `migrate()` a thin dispatcher: build the env when needed, then
+delegate each step to a named helper. The body reads as the summary of
+the upgrade, and each step stays individually reusable.
+
 ## Moving records between modules
 
 When records (fields, models, access rights, mail templates, views...)
