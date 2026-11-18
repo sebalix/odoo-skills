@@ -56,6 +56,16 @@
       "name": "odoo-migrate",
       "version": "1",
       "files": ["SKILL.md"]
+    },
+    {
+      "name": "odoo-mca-timelines",
+      "version": "1",
+      "files": [
+        "SKILL.md",
+        "references/mca-tools.md",
+        "references/openupgrade-sources.md",
+        "references/matching-heuristics.md"
+      ]
     }
   ]
 }

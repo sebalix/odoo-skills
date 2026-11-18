@@ -25,6 +25,7 @@ skills/
 ├── odoo-review/            Everyday code/PR review workflow
 ├── odoo-review-oca-migration/  OCA migration/port PR review workflow
 ├── odoo-audit/             Project audit workflow + report templates
+├── odoo-mca-timelines/     MCA timeline curation workflow
 └── odoo-migrate/           Migration knowledge companion
 ```
 
