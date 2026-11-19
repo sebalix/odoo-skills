@@ -1,9 +1,9 @@
 # ORM
 
-Rules for environment, translations, sudo, domains, `Command`, transaction
-handling, and computed fields. Everything else about the ORM (decorators,
-constraints) follows standard Odoo practice: check modern core modules and
-`versions/` when unsure.
+Rules for environment, dates and datetimes, translations, sudo, domains,
+`Command`, transaction handling, and computed fields. Everything else about
+the ORM (decorators, constraints) follows standard Odoo practice: check
+modern core modules and `versions/` when unsure.
 
 ## Model declaration
 
@@ -20,6 +20,25 @@ constraints) follows standard Odoo practice: check modern core modules and
   `self._context`) are removed — see `versions/`.
 - Never mutate a context or environment in place: build a new one with
   `with_context()` / `with_user()` / `sudo()` and use that recordset.
+
+## Dates and datetimes
+
+- Stored `Datetime` values are naive UTC; keep calculations naive and
+  convert to the user timezone only for display. `Date` values are naive
+  dates.
+- Use the field-class helpers instead of raw `datetime` / `relativedelta`:
+  `fields.Date.today()`, `fields.Datetime.now()`,
+  `fields.Date.to_date()` / `to_string()`,
+  `fields.Datetime.to_datetime()` / `to_string()` (`from_string` is the
+  deprecated alias), and `fields.Date.add()` / `subtract()` /
+  `fields.Datetime.add()` / `subtract()` for relative shifts.
+- Use `fields.Date.start_of()` / `end_of()` and
+  `fields.Datetime.start_of()` / `end_of()` for period boundaries (on the
+  field classes since 18.0; `odoo.tools.date_utils.start_of()` /
+  `end_of()` otherwise).
+- Convert a stored value to the user timezone only for display with
+  `fields.Datetime.context_timestamp(record, value)`, and use
+  `fields.Date.context_today(record)` for the user's current date.
 
 ## Translations
 

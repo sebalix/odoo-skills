@@ -11,7 +11,7 @@ outlines and are pending content.
 | File | Read when... | Status |
 | ---- | ------------ | ------ |
 | `module-structure.md` | Creating a module, reviewing layout/manifest/dependencies | done |
-| `orm.md` | ORM: environment, translations, sudo, transactions, overrides | done |
+| `orm.md` | ORM: environment, dates, translations, sudo, transactions, overrides | done |
 | `views.md` | Writing or inheriting XML/QWeb views (xpath rules, templates) | done |
 | `security.md` | Sweep rules: sudo, public methods, related fields, raw SQL, domain injection, secrets | done |
 | `data.md` | Data files: noupdate records, hooks, per-company records | done |
