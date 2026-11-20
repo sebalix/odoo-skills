@@ -63,9 +63,14 @@
       "version": "1",
       "files": [
         "SKILL.md",
+        "references/audit-report.md",
+        "references/evidence-sources.md",
+        "references/examples.md",
+        "references/matching-heuristics.md",
         "references/mca-tools.md",
-        "references/openupgrade-sources.md",
-        "references/matching-heuristics.md"
+        "references/method-matching.md",
+        "scripts/batch_method_scan.py",
+        "scripts/method_scan.py"
       ]
     }
   ]

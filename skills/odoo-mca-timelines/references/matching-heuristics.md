@@ -71,15 +71,15 @@ removals).
 
 ## 3. Model rename map
 
-Build `old_model -> new_model` from the explicit OpenUpgrade/apriori
-renames for the transition.
+Build `old_model -> new_model` from the explicit OpenUpgrade/apriori,
+analysis, and migration-script renames for the transition.
 
 Resolve the target model in the **source module** first. If it exists
 there, the target is that same-module element; linking to the base model
 in another module is wrong. Only fall back to the base module when the
-source module has no element for the target model. A non-empty `inherit`
-(`code_get_element_details`) makes the same-module rule mandatory for an
-extension.
+source module has no element for the target model. Run the pre-confirm
+gate in `audit-report.md`; a non-empty `inherit` makes the
+same-module rule mandatory for an extension.
 
 Consequences:
 
@@ -92,14 +92,10 @@ Consequences:
 - If the field/method is renamed or moved to another model, create a
   field/method timeline with `next_name`/`next_model`.
 - Skip elements on models that are new or truly removed.
-- For data, validate the target model against the map (step 6). Reconcile the
-OpenUpgrade target with the actual MCA scan: a rename can name a different
-module than the scan (`payment_acquirer_kanban` stayed in `payment`, not
-`account_payment`) or a local ID can change because another module was
-renamed in the same transition (`payment_test` -> `payment_demo`, so
-`payment_acquirer_test` targets `payment.payment_provider_demo`). When a
-full target XML ID exists in several later versions, pass `next_module`
-explicitly.
+- For data, validate the target model against the map (step 6) and
+reconcile the OpenUpgrade target with the MCA scan. The reconciliation
+examples and the `next_module` rule are in `evidence-sources.md` and
+`mca-tools.md`.
 
 ### Delegated models (`_inherits`)
 
@@ -225,8 +221,8 @@ documents the semantic replacement; otherwise report it.
 Create the timeline with `confirm=True` for a `[HIGHLY-CONFIDENT]` match
 and as a draft for a `[LESS-CONFIDENT]` one. A source must document the
 element itself, not just the transition: never cite `apriori.py` or
-`upgrade_analysis.txt` on a method timeline (see the source relevance
-check in `SKILL.md`). In the HTML note, explain the score or the reason,
+`upgrade_analysis.txt` on a method timeline (see `evidence-sources.md`).
+In the HTML note, explain the score or the reason,
 then use a bulleted `Source:` section with one full URL per bullet:
 
 ```html
@@ -260,8 +256,9 @@ downgraded.
 - A data target module taken from the OpenUpgrade list but not from the
   scan: reconcile it before creating. The record may have stayed in the
   source module, or moved to a module whose local XML IDs changed.
-- A model that disappears from the MCA scan but still exists in the
-  source at the scanned commit: do not create a removal.
+- An element reported absent but present in the source at
+  `last_scanned_commit` (model, field, method, or data): record an MCA
+  scan/identity gap; do not create a removal.
 - A merge into an existing module: use `replaced`, not `renamed`.
 - A method body identical to another method that implements a different
   field or model (parallel implementation), e.g. `_can_edit_name` vs

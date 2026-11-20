@@ -31,10 +31,8 @@ to discover them all.
   `code_create_timeline` then fails with “Several data records match …
   Specify `next_module`”; pass `next_module` explicitly even when the full
   XML ID also contains the target module.
-- **The same-module target check is a pre-create gate.** Before
-  `confirm=True`, search the target element in the source module at the
-  target version and fetch the source model's `inherit`. If the source is
-  an extension, or a same-module target exists, link to it. Confirmed
+- **Run the same-module gate before `confirm=True`.** The detection recipe
+  and classification table are in `audit-report.md`. Confirmed
   timelines cannot be retargeted or deleted through the MCP tools.
 - **`code_list_timelines` returns the note and, in current builds, a
   `next` target reference.** Use it to deduplicate and to compare the
@@ -271,11 +269,6 @@ from `xml_id`, never from `name`, when comparing against a timeline.
   `timeline.state="draft"`. Use `timeline_state="draft"` to
   review proposals and `timeline_type="removed"` to report confirmed
   removals.
-- For a large module, fetch all data elements once per module/version and
-  build a `name -> {data_type, noupdate, is_override}` map in memory. This
-  is much cheaper than calling `code_get_element_details` per record and
-  lets you separate structural records from demo/noupdate/override data
-  before matching.
 - Data elements are always restricted to loaded records. Classify them
   with the filters and output fields:
   - `data_type="demo"`: report only;
@@ -289,11 +282,8 @@ from `xml_id`, never from `name`, when comparing against a timeline.
   exists in another module (typically `base`): report an extension
   removal, not a model removal.
 - `code_get_element_details` on a model returns `inherit`. A non-empty
-  `inherit` means this module element is an extension. When a model is
-  renamed, target the same module's element of the new model when it
-  exists, not the base model in another module; a non-empty `inherit`
-  makes this mandatory. `references/timeline-audit.md` has the detection
-  recipe.
+  `inherit` means this module element is an extension; see the pre-confirm
+  gate in `audit-report.md` before targeting another module.
 - `code_get_next_version_element` and `code_search_elements` resolve the
   actual target; use them on the target version rather than assuming
   `next_version`.
@@ -314,48 +304,16 @@ from `xml_id`, never from `name`, when comparing against a timeline.
 - `code_list_timelines` is paginated (default 50 rows). Page to `total`
   before deduplicating; use `state`, `timeline_type` and `element_type`
   to narrow the listing.
-- Every create/update tool accepts `confirm=True` with a Source URL.
-  Confirm a high-confidence module rename/replacement when the evidence
-  is explicit: it activates the module lineage used by
-  `code_list_absent_elements`. Confirm a code timeline when the match is
-  HIGHLY-CONFIDENT (explicit OpenUpgrade/commit evidence, or identical
-  normalized code/data with a unique structural match); keep
-  LESS-CONFIDENT matches as drafts for human review.
-- Confirmed timelines can have their note updated through the MCP tools
-  (note-only, HTML, Source URL required). Their semantic fields cannot be
-  modified and they cannot be deleted. Create a module timeline confirmed
-  only when the evidence is explicit; create a code timeline confirmed
-  only for a HIGHLY-CONFIDENT match.
-- The MCA only checks that a note carries a source URL; it does not check
-  that the URL documents the element. Source relevance is the agent's
-  responsibility: see the source relevance check in `SKILL.md`.
-- `code_create_timeline` accepts `next_module`/`next_model` for a
-  cross-module or cross-model move. The target is still stored as a record
-  reference; `code_list_timelines` and `code_get_element_history` expose
-  the target module/model. Do not use `removed` when the target exists.
-- Before creating a timeline, verify the target with
-  `code_search_elements` on the actual target version/module/model. A
-  target that exists only in the source tree is a scan gap: report it and
-  skip the creation. This is mandatory for methods, whose evidence is the
-  target source/commit.
-- Also verify the **source is absent** from the target version by searching
-  the target for the source name/XML ID. `code_create_timeline` does not
-  enforce this: a source that still exists produces an invalid move. A
-  confirmed invalid timeline must be deleted in the MCA UI.
-- A pre-existing confirmed timeline may already have resolved its element
-  and therefore be invisible in `code_list_absent_elements`. Page
-  `code_list_timelines` to `total` before creating anything.
-- A merge (several sources -> one target) uses one `moved` timeline per
-  source, all with the same target. A true split (one source -> several
-  targets) keeps one primary target and explains the others in the note.
+- `confirm=True` requires a Source URL and is one-way. Confirm only
+  high-confidence evidence; keep LESS-CONFIDENT matches as drafts.
+  Confirmed timelines can only be note-annotated.
+- Before creating, verify the target and the source in the MCA (see SKILL
+  Step 7). `code_create_timeline` does not enforce source absence.
+- `code_create_timeline` accepts `next_module`/`next_model`; use `moved`
+  when the target exists, `removed` only when it does not.
 - `repository` is required when several repositories host the source
-  module. Cross-repository targets are rejected.
-
-- **Duplicate scans and access rights.** Several scans can exist for one
-  version; take the scan commit from `module_get_details`. When the target
-  replaces `ir.model.access` with `ir.access` (20.0), treat the access
-  records as one model migration and report them; do not map each old XML
-  ID to a guessed new one.
+  module. Cross-repository targets are rejected unless they are reached
+  through a confirmed module rename/replacement timeline.
 
 ## Update or annotate timelines
 

@@ -81,8 +81,16 @@ longer exists.
 
 Run the method pass on the **remaining** methods after the model timelines
 are confirmed: model lineage already resolves same-name methods on
-renamed/moved models. Scanning before that produces a large
-`model_removed` bucket that is really covered by the model migration.
+renamed/moved models. Pass the confirmed model map to the scanner
+(`--model-map`), otherwise methods on renamed models are reported as
+`model_removed`. Scanning before that produces a large `model_removed`
+bucket that is really covered by the model migration.
+
+Verify a `model_removed` status with `code_get_element_details` before
+reporting it: the target module may still define the model as an
+`_inherit` extension while the scanner's class mapping missed it (e.g.
+`phone_validation/res.partner` at 20.0). The method may still be truly
+removed, but the status label is not authoritative.
 
 When the source model is renamed or merged, resolve the target model in
 the source module first. If it exists there, use it; only fall back to the
@@ -294,45 +302,21 @@ source/target file, line, body ratio, signature ratio and name ratio. The summar
 
 ## Expected yield
 
-On four standard modules across 14.0–20.0, 1,252 uncovered methods yielded
-17 exact and 25 similar matches. The rest were removals or refactors. This
-is normal: a method pass is a precision tool, not a completeness tool.
-Report the classification counts and the rejected false positives so a
-reviewer can see why the remaining methods were not drafted.
+A method pass is a precision tool, not a completeness tool. Report the
+classification counts and the rejected false positives so a reviewer can
+see why the remaining methods were not drafted.
 
-A second run on `project`, `sale_project`, `sale_mrp` and `purchase_mrp`
-(14.0–20.0) scanned 259 methods. Without the guards it produced 3 exact,
-13 similar, 14 on removed or extension models, 14 weak, and 215 no-match.
-The exact set contained a false positive (`_inverse_is_favorite` ->
-`toggle_favorite`, where the target already existed in the source). With
-`--search-all-models --min-name-ratio 0.5
---flag-target-existing-in-source` the same run produced 2 exact, 14
-similar, 1 `target_exists_in_source`, 6 `model_removed`, 8
-`extension_model_removed`, 16 weak, and 212 no-match. The cross-model
-search found one additional real move
-(`project.project._compute_rating_request_deadline` ->
-`project.task.type._compute_rating_request_deadline`), and the guard
-surfaced the false exact match.
+Calibration points:
 
-`target_exists_in_source` is advisory. Six confirmed method moves to
-pre-existing targets were reviewed and accepted because their commits
-document the semantic replacement; the guard remains useful for the case
-without such a commit.
+- 1,252 uncovered methods -> 17 exact, 25 similar; the rest were removals
+  or refactors.
+- A 23-module run (90 transitions) classified 1,212 methods: 17 exact,
+  33 similar, 1 `exact_unrelated_name`, 1 `target_exists_in_source`,
+  3 ambiguous, 98 `extension_model_removed`, 170 `model_removed`,
+  836 no-match, 53 weak. It produced 25 timelines (7 confirmed, 18 drafts).
+- A `base`/`mail` run scanned 1,094 methods -> 30 exact, 47 similar, 32
+  commit-backed timelines after model lineage; the remaining exact/similar
+  hits lacked a commit or were cross-model parallel implementations.
 
-A third run on `base` and `mail` (14.0–20.0) scanned 1,094 methods: 30
-exact, 47 similar, 2 ambiguous, 59 weak, 734 no-match, 113
-`model_removed`, 9 `extension_model_removed`, and 100
-`source_not_parsed`. After the model timelines, 32 commit-backed method
-timelines were created; the remaining exact/similar candidates were left
-as a review queue because they lacked an explicit commit or were
-cross-model parallel implementations. The `base` run also needs the
-`odoo/addons` prefix handling described above.
-
-A 23-module run (14.0–20.0, 90 executable transitions) classified 1,212
-absent methods: 17 exact, 33 similar, 1 `exact_unrelated_name`, 1
-`target_exists_in_source`, 3 ambiguous, 98
-`extension_model_removed`, 170 `model_removed`, 836 no-match, and 53
-weak. It produced 25 method timelines (7 confirmed, 18 drafts). Most of
-the remaining exact/similar hits were same-name scan gaps, generic CRUD
-methods, ambiguous multi-candidates, or cross-model mixin extractions
-that needed review.
+`target_exists_in_source` and `exact_unrelated_name` are advisory; confirm
+only with a commit that documents the semantic replacement.
