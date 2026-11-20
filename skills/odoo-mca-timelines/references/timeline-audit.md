@@ -1,9 +1,14 @@
 # Timeline audit: inherited elements and same-module targets
 
-Run this audit after creating timelines, and whenever a model rename or
-merge touches an extension model. It catches timelines that point to the
-base definition in another module while the source module still has its
-own extension of the target model.
+Run this audit **before creating any cross-module timeline**, not only
+afterwards. It catches timelines that point to the base definition in
+another module while the source module still has its own extension of the
+target model.
+
+Confirmation is a one-way decision: the MCP tools cannot retarget or delete
+a confirmed timeline, only annotate its note. The same-module check must
+therefore happen before `confirm=True`. If a wrong confirmed link already
+exists, record it as “UI fix required” and annotate the note.
 
 ## Checklist
 
@@ -33,6 +38,22 @@ element must follow `mrp:stock.reference`, not the base
 `stock:stock.reference`. This applies to base models and extensions, and
 to fields and methods on them: if the target exists in the source module,
 prefer it. A non-empty `inherit` makes it mandatory for an extension.
+
+## Target resolution for renames and module splits
+
+Use the source model's ownership and the target module layout, not the
+apriori entry alone:
+
+| Situation | Target |
+|---|---|
+| Source model owns the model (`inherit: []`) and the model is renamed | the target model, possibly in a new module |
+| Source model is an extension and the source module still has the target model | the same-module extension (e.g. `hr:mail.channel` -> `hr:discuss.channel`) |
+| Source module is merged into a target module | the target module (e.g. `hr_contract:hr.contract` -> `hr:hr.version`) |
+| Model is extracted to a new module | the new module (e.g. `mail:mail.tracking.value` -> `mail_tracking:...`; `purchase_requisition:purchase.order.group` -> `purchase_alternative:...`) |
+
+An absorbed module's own module timeline is out of scope unless requested,
+but its key models and fields can still receive timelines when they feed
+the requested target module (cite the apriori merge).
 
 ## Detection
 
@@ -88,8 +109,9 @@ prefer it. A non-empty `inherit` makes it mandatory for an extension.
 A moved timeline is only valid when the source is really absent from the
 target version. For every timeline, search the target version for the
 **source** name/XML ID. For data, index `code_search_elements` results by
-`xml_id` (the full XML ID); its `name` field is only the local XML ID,
-while timelines store the full XML ID.
+`xml_id` (the full XML ID); its `name` field is the display name (it may
+equal the local XML ID for views/actions, but not for access rules and
+similar records), while timelines store the full XML ID.
 
 - model/field/method: same module, source model, source name;
 - data: same module, source local XML ID.
@@ -100,13 +122,28 @@ If the source still exists, distinguish:
   (`invalid_move`). A confirmed one must be deleted in the MCA UI (the MCP
   tools cannot delete a confirmed timeline). This catches records that
   OpenUpgrade renames in the database while the source XML record is still
-  present in the target branch.
+  present in the target branch. Concrete traps: `l10n_fr.dom-tom` was
+  listed as renamed to `base` but the old ID still resolved at 19.0, and
+  `point_of_sale.product_product_consumable` still existed at 18.0. Do not
+  create these moves; report them.
 - **model/field/method**: the name may have been reintroduced with new
   semantics (`same_name_continuation`). An explicit OpenUpgrade rename can
   still justify a move to a differently named element — e.g.
   `stock.move.location_dest_id -> location_final_id`, where
   `location_dest_id` also exists in 18 with new semantics. Review before
   deleting.
+
+A method target that already exists in the source version is **advisory**:
+confirm it only with a commit that documents that the source was retired in
+favor of that target. Transient models are valid `removed` timelines when
+the removal is explicit; their fields and methods are covered by the model
+lineage.
+
+If an explicit rename list mentions a data record that is absent from the
+MCA data scan, report “not in MCA scan” instead of creating an unresolvable
+timeline. This was the case for
+`website_event.constraint_event_registration_answer_value_check` and the
+three `point_of_sale` constraint XML IDs.
 
 ## Fix
 
@@ -116,7 +153,8 @@ If the source still exists, distinguish:
   source URL.
 - **Confirmed timeline:** the MCP tools cannot retarget it. It must be
   fixed in the MCA UI, as for `procurement.group`. A note-only update is
-  still possible.
+  still possible; pass only `note` (plus source identity and repository),
+  not `timeline_type` or the target fields.
 
 ## Worked example
 
@@ -128,10 +166,17 @@ If the source still exists, distinguish:
 | `account:account.analytic.default` 15.0 | `analytic:account.analytic.distribution.model` | `account:account.analytic.distribution.model` |
 | `mrp:mrp.document` 17.0 | `product:product.document` | `mrp:product.document` |
 | `stock_account:stock_account.stock.valuation.report` 19.0 | `account:account.stock.valuation.report` | `stock_account:account.stock.valuation.report` |
+| `repair:repair.line` 16.0 | `stock:stock.move` | `repair:stock.move` |
+| `point_of_sale:pos.combo` 17.0 | `product:product.combo` | `point_of_sale:product.combo` |
+| `point_of_sale:pos.combo.line` 17.0 | `product:product.combo.item` | `point_of_sale:product.combo.item` |
+| `point_of_sale:procurement.group` 18.0 | `stock:stock.reference` | `point_of_sale:stock.reference` |
+| `point_of_sale:product.packaging` 18.0 | `product:product.uom` | `point_of_sale:product.uom` |
 
-The first three are inherited-extension cases. The last three are
+The first three are inherited-extension cases. The next three are
 base-source cases where the source module still carries the relevant
-same-module element.
+same-module element. The last five are confirmed mislinks from a
+23-module curation run; because they are already confirmed, a human must
+retarget them in the MCA UI.
 
 ## False positives
 

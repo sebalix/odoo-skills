@@ -51,8 +51,9 @@ The agent works from several evidence sources, in this order:
   Confirmed timelines are locked, so confirming is a one-way decision.
   For a merge (several sources -> one target), confirm the primary source
   only and keep secondary sources as drafts unless the evidence documents
-  a 1:1 mapping: a secondary source is usually only partially represented
-  by the target.
+  a 1:1 mapping or the source is a thin wrapper/alias fully represented by
+  the target. A secondary source is usually only partially represented by
+  the target.
 - **Tag every note.** The note is HTML: start its visible text with
   `[HIGHLY-CONFIDENT]` or `[LESS-CONFIDENT]`.
 - **Use `<ul><li>` for the Source section, and verify it after
@@ -106,8 +107,11 @@ The agent works from several evidence sources, in this order:
   disappearances instead of creating hundreds of low-confidence
   timelines. Report technical data in bulk rather than as per-record
   removals: asset bundles, ACLs that migrate to a new model (for example
-  `ir.model.access` -> `ir.access` in 20.0), demo records, and records
-  without user-facing semantics.
+  `ir.model.access` -> `ir.access` in 20.0), access-rights records,
+  country/state/language population data moved from `l10n_*` modules into
+  `base`, views/actions tied to a removed model, demo records, and records
+  without user-facing semantics. For an access-rights migration, create
+  the model timeline(s) and report the records in bulk.
 - **Never modify the user's Odoo checkouts.** Use a throwaway clone or a
   writable object cache under `/tmp`.
 
@@ -136,6 +140,9 @@ Confirm or infer before starting:
    rather than switching the working tree.
 4. Locate an Odoo git clone. A bare or full clone is best; a read-only or
    partial clone can still serve path-limited logs and commit messages.
+   Core modules are not always under `addons/`: `base` lives under
+   `odoo/addons/base`, and the 20.0 core tree uses `odoo/addons`. The
+   method scanner auto-detects both prefixes.
 5. Read `references/openupgrade-sources.md` for the repository layout
    and extraction commands.
 6. For a method pass, read `references/method-matching.md`. The helpers
@@ -250,14 +257,44 @@ removal needs an explicit commit (`[REF]`, `[MOV]`, `[REM]`, or a commit
 message that names the element) or an element-specific target source file
 when the body/XML is identical and unique.
 
+## Large-module playbook
+
+For a module with hundreds or thousands of absent elements (`base`,
+`mail`, `hr`), use this order instead of working element type by element
+type:
+
+1. Create the model timelines first (apriori/analysis). Model lineage
+   resolves same-name fields and methods on the renamed models.
+2. Re-list the absent fields and methods; many disappear without new
+   timelines. Record the new snapshot.
+3. Map explicit field renames from migration scripts (`_fields_renames`,
+   `_renamed_fields`, column renames, `_inherits` delegation).
+4. Map data renames/deletions from `_xmlids_renames` / `_deleted_xmlids` /
+   `_deleted_xml_records`.
+5. Run the method body scan only on the remaining methods.
+6. Report the bulk data sets (access rights, population data, technical
+   records) instead of creating per-record removals. Fetch all data
+   elements once per module/version and build a
+   `name -> {data_type, noupdate, is_override}` map; this separates the
+   structural records from the bulk demo/noupdate/override sets without a
+   per-record details call.
+
+This keeps the method scan small and avoids `model_removed` noise.
+
 ## Workflow
 
 ### Step 1 — build the module map
 
 1. `module_search` with `name=<module>` (not `query`) to confirm
    existence and the repositories hosting it.
-2. `module_get_details` for each version in scope. It is the authority for
-   existence and for `last_scanned_commit`.
+2. `module_get_details` for each version in scope. It is the primary
+   authority for existence and for `last_scanned_commit`. If it returns
+   `null`, do not conclude the module disappeared: cross-check
+   `module_search` and any
+   `code_search_elements` hit for that version. A module can be absent from
+   `module_get_details` while both the module index and the code scan still
+   contain it (observed for `repair` 20.0); record that as an MCA
+   scan/identity gap.
 3. Record: version, repository, manifest version, `last_scanned_commit`,
    existence. Cross-check `module_list_versions` only as a hint: it can be
    empty for an existing module, stop before the newest version, and
@@ -309,6 +346,20 @@ Create per-element `moved` timelines with `next_module`, and report
 extension models that remain defined in other modules (`stock.picking`,
 `stock.move`, …) instead of turning them into removals.
 
+An **absorbed module** (`hr_contract`, `base_vat`, `fetchmail`, …) is not
+the requested module: its module timeline is out of scope unless asked
+for. Key model and field timelines can still be created when they feed
+the requested target module (`hr_contract:hr.contract` -> `hr:hr.version`
+feeds `hr`), citing the apriori merge.
+
+A confirmed module timeline only resolves **same-name** elements in the
+successor module. Renamed or merged models still need their own timelines:
+`coupon` -> `loyalty` required `coupon.coupon` -> `loyalty.card`,
+`coupon.program` -> `loyalty.program`, etc., and `gift_card` -> `loyalty`
+required `gift.card` -> `loyalty.card`. After confirming a module
+timeline, re-list the absent models and map every renamed/merged model
+before moving to fields and methods.
+
 ### Step 3 — list the absent elements
 
 Use `code_list_absent_elements` for each module/version in scope. It is
@@ -320,7 +371,10 @@ distribution: `total`, `next_version`, and `counts` (uncovered, draft,
 removed, moved). `total` is after any timeline filter; `counts` is the
 distribution before it. Confirmed `moved` timelines remove elements from
 the list, so `total` shrinks as you work: keep the initial snapshot for
-the report.
+the report. `counts.moved` is **not** a progress metric: moved elements
+leave the absent list entirely, so it normally stays at 0 even after many
+confirmed moves. Use the drop in `total` (and the confirmed timeline
+count) instead.
 
 Then build the worklist:
 
@@ -416,7 +470,13 @@ For each absent element:
 6. For data that moved to another module without a model rename (menus,
    access rights), use the full XML ID plus the OpenUpgrade
    `_renamed_xmlids`/git evidence to locate the target module; create a
-   `moved` timeline with `next_module` (or the full `next_name`).
+   `moved` timeline with `next_module` (or the full `next_name`). Reconcile
+   the OpenUpgrade target with the actual MCA scan before creating: a script
+   may name `account_payment` while the record stayed in `payment`
+   (`payment_acquirer_kanban`/`_list`/`_search`), and a module renamed in
+   the same transition changes the local XML ID
+   (`payment_test` -> `payment_demo`, so `payment_acquirer_test` targets
+   `payment.payment_provider_demo`, not `payment_provider_test`).
 7. Create a `moved` timeline when a target exists; create `removed`
    only when there is no successor (see the removal policy).
 8. For methods, apply the method playbook before any body comparison:
@@ -453,7 +513,8 @@ Read `references/matching-heuristics.md` for the full matching method. In short:
   source module has no element for the target model. A non-empty `inherit`
   is a strong signal that the source element is an extension and must
   follow the same-module extension. Apply the same rule to fields and
-  methods on inherited models.
+  methods on inherited models, and run the pre-confirm gate in Step 7
+  before setting `confirm=True`.
 
 ### Step 6 — assign confidence
 
@@ -483,10 +544,13 @@ or a generic CRUD method without an explicit rename commit.
 
 For a merge (several sources -> one target), the target often represents
 only part of a secondary source: confirm the primary source and keep the
-secondary sources as drafts unless the evidence documents a 1:1 mapping.
+secondary sources as drafts unless the evidence documents a 1:1 mapping
+or the source is a thin wrapper/alias fully represented by the target.
 An exact normalized body with an unrelated name is report-only unless a
-commit confirms the rename; reject a candidate that already exists as a
-sibling in the source version.
+commit confirms the rename. A candidate that already exists as a sibling
+in the source version is advisory: confirm it when an explicit commit
+documents that the source was retired in favor of that target; otherwise
+report it.
 
 Tag accordingly, explain the uncertainty in the note, and create the
 timeline confirmed for `[HIGHLY-CONFIDENT]` (with a `Source:` URL) or as
@@ -535,6 +599,16 @@ exists in the source module, prefer that element over the base model in
 another module; a non-empty `inherit` makes it mandatory for an extension
 (see Step 5).
 
+**Same-module target gate — run it before `confirm=True`.** Search the
+target element in the source module at the target version and fetch the
+source model details. If the source `inherit` is non-empty, or a
+same-module target exists, link to the same-module element
+(`next_module=<source module>`). Confirmation is irreversible through the
+MCP tools: a confirmed timeline cannot be retargeted or deleted, only
+annotated. Do not rely on the Step 8 audit to catch this; at that point the
+only fix is the MCA UI. The same gate applies to methods extracted to a
+mixin in the source module.
+
 The note is HTML. Use a `<ul>` list for the `Source:` section; the MCA
 sanitizer preserves it, while a `<br/>- <a>` list can be flattened on
 creation:
@@ -555,7 +629,10 @@ note with `code_update_timeline` using the `<ul><li>` form.
 
 When no commit is found, keep the OpenUpgrade link only. Confirmed
 timelines can later be annotated with a note-only update (HTML + source
-URL); their semantic fields remain locked.
+URL); their semantic fields remain locked. Pass only `note` (plus the
+source identity and repository) on a confirmed timeline: including
+`timeline_type`, `next_name`, `next_module` or `next_model` — even with
+the existing value — is rejected with “only its note can be updated”.
 
 #### Source relevance check
 
@@ -575,6 +652,11 @@ Extract the element identity and grep the cited file:
 git -C <openupgrade> show <branch>:<file> | grep -nF "<name>"
 ```
 
+For a field, require the source **model and field** on the same analysis
+line (`module / model / field`). A field name that only appears under a
+different model is not element evidence. For data, require the full XML
+ID; for a model, the exact model name.
+
 For a method, skip the OpenUpgrade analysis/apriori entirely and cite the
 Odoo/OCA commit or the target-branch source file. If the grep finds
 nothing, drop the link instead of keeping it as transition context.
@@ -589,17 +671,21 @@ missing).
 
 For data, `name` and `next_name` accept full XML IDs
 (`stock.access_stock_lot_user`); a full `next_name` can infer the target
-module when unambiguous. Local IDs work when `module`/`next_module`
-disambiguates. Use the **exact** target XML ID from `_xmlids_renames` or
-the migration script; do not derive it from the source local ID. A module
-split can drop a suffix, e.g.
+module when unambiguous. When the same full XML ID exists in several later
+versions, `code_create_timeline` fails with “Several data records match …
+Specify `next_module`”; pass `next_module` explicitly. Local IDs work when
+`module`/`next_module` disambiguates. Use the **exact** target XML ID from
+`_xmlids_renames` or the migration script; do not derive it from the source
+local ID. A module split can drop a suffix, e.g.
 `delivery.sale_order_portal_content_inherit_sale_stock_inherit_website_sale_delivery`
 → `stock_delivery.sale_order_portal_content_inherit_sale_stock_inherit_website_sale`.
 
 Before creating a `removed` timeline, re-check the false-removal guards:
 model `next_defined_in` non-empty, data `is_override=True`,
 `data_type="demo"`, and `noupdate=True` without explicit deletion
-evidence. Report those instead of drafting a removal.
+evidence. Report those instead of drafting a removal. Transient models are
+not a blocker: create `removed`/`moved` timelines when the evidence is
+explicit; the model lineage covers their fields and methods.
 
 A merge (several sources -> one target) is represented by one `moved`
 timeline per source, all pointing to the same target. A true split (one
@@ -608,7 +694,9 @@ record the primary target and name the other targets in the note.
 
 ### Step 8 — audit the timelines
 
-Run `references/timeline-audit.md` before reporting:
+Run `references/timeline-audit.md` before reporting. Treat the same-module
+checks as a confirmation gate, not just a post-creation audit: a confirmed
+mislink can only be noted, not retargeted or deleted through the MCP tools.
 
 1. Fetch every created or changed timeline and verify a confirmed move
    resolves with `code_get_next_version_element`.
@@ -616,7 +704,9 @@ Run `references/timeline-audit.md` before reporting:
    `next_defined_in`; prefer the same-module extension when it exists.
 3. Re-search the target version for every source name/XML ID and flag
    `invalid_move` (data) or `same_name_continuation`
-   (model/field/method).
+   (model/field/method). A method target that already exists in the source
+   version is advisory: confirm it only with a commit that documents the
+   semantic replacement.
 4. Re-read every note: tag, exact-name source relevance, `<ul>` Source
    section, and working URLs.
 
@@ -625,7 +715,9 @@ Run `references/timeline-audit.md` before reporting:
 Return a compact report:
 
 - per-transition counts: initial `total`/`counts` snapshot, created,
-  resolved by model lineage, current uncovered/draft/removed/moved;
+  resolved by model lineage, current uncovered/draft/removed. `moved` is
+  normally 0 because moved elements leave the list; report the drop in
+  `total` as the resolved-by-moves figure instead;
 - created timelines: id, transition, element, type, state
   (confirmed/draft), confidence;
 - method classification: exact/similar/weak/no_match/model_removed/
@@ -678,6 +770,10 @@ migration analysis.
   existing module, stop before the newest version, or return duplicate
   scans for one version. Use `module_search`/`module_get_details` and
   record the scan commit.
+- **`module_get_details` can return `null` for an existing module.** This
+  was observed for `repair` 20.0 while `module_search` and the code scan
+  contained it. Cross-check both before treating the module as removed;
+  record the discrepancy as an MCA scan/identity gap.
 - **Duplicate scans.** Several scans per version can resolve the absent
   list against a different commit than `module_get_details` returns. If an
   element is reported absent but exists in the source at
@@ -685,8 +781,23 @@ migration analysis.
   removal.
 - **`ilike` search.** `code_search_elements` matches substrings. Filter
   every hit by exact name/model before using it.
+- **Pre-existing target.** A method whose target already exists in the
+  source version is not automatically a false positive: an explicit
+  semantic commit can show that the source was retired in favor of that
+  target. Confirm with that commit; otherwise report it. The
+  `target_exists_in_source` scanner status is advisory.
 - **Note sanitizer.** `<br/>- <a>` bullets can be flattened on creation;
   use `<ul><li>` and read the note back after creating it.
+- **Confirmed timelines are locked.** A confirmed timeline can only receive
+  a note-only update. Pass only `note` plus the source identity and
+  repository; including `timeline_type`, `next_name`, `next_module` or
+  `next_model` — even unchanged — is rejected. A wrong confirmed target
+  must be fixed in the MCA UI.
+- **Source still exists in the target scan.** Re-search the old name/XML ID
+  before creating a move. Two concrete traps: `l10n_fr.dom-tom` was listed
+  as renamed to `base` but the old ID still resolved at 19.0, and
+  `point_of_sale.product_product_consumable` still existed at 18.0. In
+  both cases the move is invalid; report it instead of creating it.
 - **MCA scan gaps.** A model or method can be missing from the MCA scan
   while still being present in the source at the scanned commit. Verify
   against the source before creating a removal. The reverse also happens:
@@ -699,7 +810,11 @@ migration analysis.
   new module receives elements, create no module timeline; use per-element
   `moved` with `next_module`.
 - **Exact target XML IDs.** Copy the target from `_xmlids_renames` or the
-  migration script; a module split may drop a suffix.
+  migration script; a module split may drop a suffix. Reconcile it with
+  the actual MCA scan: OpenUpgrade can name a different target module than
+  the scan (`payment_acquirer_kanban` stayed in `payment`, not
+  `account_payment`) or a local ID changed by a module rename in the same
+  transition (`payment_acquirer_test` -> `payment_provider_demo`).
 - **Renamed models follow the same module.** When the target model exists
   in the source module, link to it, not to the base model in another
   module. A non-empty `inherit` makes this mandatory for extensions. See
@@ -716,6 +831,14 @@ migration analysis.
   element from the absent list; a confirmed `removed` remains listed with
   `timeline.type="removed"`; a draft remains listed with
   `timeline.state="draft"`. A remaining entry is not a failed creation.
+- **`counts.moved` is not a progress metric.** Moved elements disappear
+  from the absent list, so `counts.moved` normally stays at 0 even after
+  many confirmed moves. Measure progress with the drop in `total`.
+- **Module lineage is not model lineage.** A confirmed module rename/
+  replacement resolves same-name models only. Renamed models still need
+  their own timelines (e.g. `coupon` -> `loyalty` required
+  `coupon.coupon` -> `loyalty.card`; `gift_card` -> `loyalty` required
+  `gift.card` -> `loyalty.card`).
 - **Timeline lists are paginated.** `code_list_timelines` defaults to 50
   rows. Page with `limit`/`offset` until `total` before deduplicating.
 - **Extension removals are not element removals.** A model with non-empty
@@ -742,9 +865,10 @@ migration analysis.
   `ir.model.access` with `ir.access` (20.0), the XML IDs are reorganised
   and consolidated. Report the migration; do not create speculative
   per-record moves.
-- **Transient models and wizards.** An explicitly removed transient model
-  (e.g. `project.delete.wizard`) is report-only unless a deletion list
-  names it; it is not a user-facing model removal.
+- **Transient models and wizards.** Create `removed`/`moved` timelines for
+  transient models when the evidence is explicit (commit, analysis `DEL`,
+  or deletion list). The model lineage covers its fields and methods; do
+  not create per-element removals for them.
 - **Technical data removals.** Asset bundles, ACLs, and demo or tracking
   records are reported in bulk; create per-record removals only for
   structural records that a migration script must handle.
@@ -765,8 +889,8 @@ migration analysis.
   confidence thresholds, false positives.
 - `references/method-matching.md` — method classification, AST
   normalization, false positives, helper-script usage.
-- `references/timeline-audit.md` — post-creation audit for same-module
-  inherited targets and other cross-module mislinks.
+- `references/timeline-audit.md` — pre-confirmation and post-creation
+  audit for same-module inherited targets and other cross-module mislinks.
 - `scripts/method_scan.py` — AST method scanner/comparator for an
   absent-method list; supports cross-model (`--search-all-models`),
   cross-module (`--search-modules`), and name-relation guards.

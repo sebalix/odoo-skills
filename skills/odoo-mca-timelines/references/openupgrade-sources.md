@@ -25,12 +25,24 @@ The `scripts/<module>` directory may be absent on the newest branch.
 ## Branch semantics
 
 - Branch `N` analyzes `N-1 -> N`. The 16.0 analysis covers 15.0 -> 16.0.
+- A model timeline derived from a branch-`N` analysis is created at
+  version `N-1`, not `N`: the source model must exist at `N-1`. If the
+  source lookup fails, shift the timeline back one version and verify.
 - `apriori.py` is cumulative. An entry on 20.0 can describe a merge that
-  happened in 15.0. Use `module_list_versions` to find the module's last
-  existing version; that is the effective transition.
+  happened in 15.0. Use `module_search`/`module_get_details` to find the
+  module's last existing version; that is the effective transition.
+  Renames can also reverse in a later branch (`hr.applicant.skill` ->
+  `hr.candidate.skill` -> `hr.applicant.skill`), so always anchor the
+  entry to the version where the source model actually exists.
 - `renamed_modules` / `renamed_models` are 1:1 renames.
 - `merged_modules` / `merged_models` are merges into an existing module.
   Use `timeline_type: "replaced"`.
+- Normalize dictionary keys before lookup. The 16.0 `merged_modules`
+  contains `"gift_card "` with a trailing space; a strict lookup misses
+  the merge. Strip whitespace from keys and values.
+- Distinguish Odoo-core entries from OCA entries in the same dictionary.
+  `l10n_eu_service` -> `l10n_eu_oss` is an Odoo-core merge, while the
+  neighbouring `l10n_eu_oss` -> `l10n_eu_oss_oca` entry is OCA-only.
 
 ## Read the work notes first
 
@@ -60,6 +72,11 @@ git -C <odoo> archive <scan_commit> addons/<module> | tar -x -C /tmp/mca-trees/<
 
 Use that tree as the source of truth. Branch HEAD can contain later
 changes and produce false matches or misses.
+
+Core modules are not always under `addons/`: `base` lives under
+`odoo/addons/base`, and the 20.0 core tree also uses `odoo/addons`.
+Check both prefixes (`git cat-file -e <commit>:odoo/addons/<module>`);
+`scripts/method_scan.py` auto-detects them.
 
 ## Extract apriori
 
@@ -125,6 +142,13 @@ local ID. A module split can drop a suffix, e.g.
 →
 `stock_delivery.sale_order_portal_content_inherit_sale_stock_inherit_website_sale`.
 
+The rename list expresses migration intent, not necessarily the final MCA
+target: reconcile it with the target scan. A record can stay in the source
+module (`payment.payment_acquirer_kanban` -> `payment.payment_provider_kanban`,
+not `account_payment`), and a module renamed in the same transition
+changes the local ID (`payment_test` -> `payment_demo`, so
+`payment_acquirer_test` -> `payment.payment_provider_demo`).
+
 ## Module splits
 
 `renamed_models` / `merged_models` give the **base** target. Before using
@@ -142,8 +166,12 @@ views and the package wizard move to `stock_delivery`.
 
 ## Newest branch without scripts
 
-The newest branch may have no `scripts/<module>` directory. Do not skip
-the transition; use git as the primary evidence source:
+The newest branch may have no `scripts/<module>` directory. In the
+checked-out repository the 20.0 branch had no
+`openupgrade_scripts/scripts` directory at all: only `apriori.py` is
+available for 19.0 -> 20.0, so git commits and the target source are the
+primary evidence. Do not skip the transition; use git as the primary
+evidence source:
 
 ```bash
 git -C <odoo> log --oneline --reverse -S "<old_field>" <source>..<target> \
@@ -209,6 +237,12 @@ element itself.
 `upgrade_analysis.txt` never lists methods and `apriori.py` never lists
 fields, methods, or data records. Do not cite them as method evidence.
 
+For a field, require the source **model and field** on the same analysis
+line (`module / model / field`). A field name that only appears under a
+different model is not element evidence; this caught several wrong-model
+citations in the `base`/`mail` audit. For data, require the full XML ID;
+for a model, the exact model name.
+
 For a data removal, quote the exact `DEL ...` line or the XML ID from
 `_deleted_xml_records` in the note. Citing the whole analysis file is
 transition context, not element-specific evidence. A `# DONE:` line in
@@ -271,5 +305,17 @@ missing objects. Use one of these:
   `objects/info/alternates` removed;
 - `GIT_OBJECT_DIRECTORY=<writable>` plus
   `GIT_ALTERNATE_OBJECT_DIRECTORIES=<clone>/objects` for tree-only work.
+
+Before discarding a read-only or partial clone, test `git archive` on the
+module branch:
+
+```bash
+git -C <odoo> archive <branch> addons/<module> | tar -t | head
+```
+
+A clone that fails `git log -S --all` because lazy objects are missing can
+still serve `git archive` for its branch tips. The method scanner only
+needs `archive`/`cat-file`, so a read-only bare clone is often usable even
+when history searches are not.
 
 Never modify the user's read-only clones.

@@ -38,8 +38,10 @@ Cross-model and cross-module searches:
                                        same model (extension methods)
   --min-name-ratio 0.5                 flag exact bodies with an unrelated
                                        name as exact_unrelated_name
-  --reject-target-existing-in-source   flag a candidate that already exists
+  --flag-target-existing-in-source     flag a candidate that already exists
                                        as a sibling in the source version
+                                       (advisory; confirm only with a commit
+                                       that documents the replacement)
 
 The output contains a summary and the exact/similar/weak candidates. Use
 `--include-no-match` to also emit the no_match records for reporting.
@@ -94,8 +96,25 @@ def git(repo: str, *args: str) -> str:
     ).stdout
 
 
+def module_tree_prefix(repo: str, module: str, commit: str) -> str:
+    """Return the repository prefix that contains the module at `commit`.
+
+    Core addons live under ``addons/`` in most versions but ``odoo/addons/``
+    for ``base`` and for the 20.0 tree layout. Try both.
+    """
+    for prefix in ("addons", "odoo/addons"):
+        check = subprocess.run(
+            ["git", "-C", repo, "cat-file", "-e", f"{commit}:{prefix}/{module}"],
+            capture_output=True,
+            text=True,
+        )
+        if check.returncode == 0:
+            return prefix
+    raise RuntimeError(f"module {module} not found at {commit}")
+
+
 def ensure_tree(repo: str, module: str, version: str, commit: str, base: str) -> str:
-    """Extract `addons/<module>` at `commit` and return the extraction root."""
+    """Extract the module tree at `commit` and return the extraction root."""
     safe_commit = commit.replace("/", "_").replace(":", "_")
     dest = os.path.join(base, module, version, safe_commit)
     marker = os.path.join(dest, ".done")
@@ -104,9 +123,10 @@ def ensure_tree(repo: str, module: str, version: str, commit: str, base: str) ->
     if os.path.exists(dest):
         shutil.rmtree(dest)
     os.makedirs(dest, exist_ok=True)
-    eprint(f"extract {module} {version} {commit}")
+    prefix = module_tree_prefix(repo, module, commit)
+    eprint(f"extract {module} {version} {commit} ({prefix})")
     archive = subprocess.Popen(
-        ["git", "-C", repo, "archive", commit, f"addons/{module}"],
+        ["git", "-C", repo, "archive", commit, f"{prefix}/{module}"],
         stdout=subprocess.PIPE,
     )
     tar = subprocess.Popen(["tar", "-x", "-C", dest], stdin=archive.stdout)
@@ -309,11 +329,15 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--flag-target-existing-in-source",
         "--reject-target-existing-in-source",
+        dest="reject_target_existing_in_source",
         action="store_true",
         help=(
             "Report an exact candidate whose name already exists in the "
-            "source version as target_exists_in_source"
+            "source version as target_exists_in_source (advisory; confirm "
+            "only with a commit that documents the replacement). The old "
+            "--reject-target-existing-in-source name is kept as an alias."
         ),
     )
     parser.add_argument("--out", required=True)

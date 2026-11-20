@@ -24,6 +24,13 @@ the rest before matching:
 - structural records: `data_type="data"`, `noupdate=False`,
   `is_override=False`.
 
+For a large module, fetch all data elements once per module/version and
+build a `name -> {data_type, noupdate, is_override}` map in memory instead
+of calling `code_get_element_details` per record. This makes it cheap to
+separate structural records from the bulk demo/noupdate/override sets
+(e.g. the 2,813 `l10n_fr` chart/report records, the 229 `payment.method`
+records, or the 360 demo analytic lines in `hr_timesheet`).
+
 Then fetch the target candidates once per `(version, module,
 element_type)` with `code_search_elements`, scoped to the modules/models
 implied by the model rename map and the absent elements. Keep the
@@ -85,7 +92,30 @@ Consequences:
 - If the field/method is renamed or moved to another model, create a
   field/method timeline with `next_name`/`next_model`.
 - Skip elements on models that are new or truly removed.
-- For data, validate the target model against the map (step 6).
+- For data, validate the target model against the map (step 6). Reconcile the
+OpenUpgrade target with the actual MCA scan: a rename can name a different
+module than the scan (`payment_acquirer_kanban` stayed in `payment`, not
+`account_payment`) or a local ID can change because another module was
+renamed in the same transition (`payment_test` -> `payment_demo`, so
+`payment_acquirer_test` targets `payment.payment_provider_demo`). When a
+full target XML ID exists in several later versions, pass `next_module`
+explicitly.
+
+### Delegated models (`_inherits`)
+
+A field can move to the model named in the target model's `_inherits`
+(e.g. `hr.employee` inherits `hr.version` in 19.0). The field keeps its
+name but lives on the delegated model:
+
+- Read `_inherits` from the target model details.
+- For an absent field on the delegating model, search the delegated model
+  first and prefer the **stored** field there over a related same-name
+  field on the delegating model.
+- For an obsolete abstract model (`hr.employee.base`), map its fields to
+  the concrete model/version that carries them.
+- Compare field type and comodel before creating the move.
+- Cite the analysis `_inherits` line; the target field alone is not
+  evidence of the delegation.
 
 ## 4. Group candidates
 
@@ -177,7 +207,7 @@ rather than matching it against a new record.
 | methods: code similarity >= 0.92 | `[LESS-CONFIDENT]` | draft |
 | data: JSON similarity >= 0.90 | `[LESS-CONFIDENT]` | draft |
 | exact body but unrelated name, no commit | report only | none |
-| candidate name already exists in the source version | report/reject | none |
+| candidate name already exists in the source version | `[HIGHLY-CONFIDENT]` with a semantic commit, otherwise report | confirmed only with a commit |
 | low view XML similarity | `[LESS-CONFIDENT]` or report only | draft |
 
 For methods, a trivial one-liner (`return True/False`, `pass`), a parallel
@@ -185,11 +215,12 @@ implementation for another field, or a template hook differing only by
 model is not a match even at similarity 1.0. Reject it instead of drafting.
 
 A merge (several sources -> one target) does not make every source a 1:1
-rename. Confirm the primary source; keep the other sources as drafts and
-say in the note how the target represents them. An exact body with an
-unrelated name is usually a false positive: confirm it only with an
-explicit commit. Reject a candidate whose name already exists as a sibling
-in the source version: it was not created by the rename.
+rename. Confirm the primary source; keep the other sources as drafts
+unless the source is a thin wrapper/alias fully represented by the target.
+An exact body with an unrelated name is usually a false positive: confirm
+it only with an explicit commit. A candidate whose name already exists as
+a sibling in the source version is advisory: confirm it when a commit
+documents the semantic replacement; otherwise report it.
 
 Create the timeline with `confirm=True` for a `[HIGHLY-CONFIDENT]` match
 and as a draft for a `[LESS-CONFIDENT]` one. A source must document the
@@ -223,6 +254,12 @@ downgraded.
   timelines to the same target. A true split (one source -> several
   targets) is a primary target + note, not a single rename.
 - A data record reassigned to a different model: reject.
+- A data record whose old XML ID still resolves in the target version:
+  reject the move. This caught `l10n_fr.dom-tom` and
+  `point_of_sale.product_product_consumable`.
+- A data target module taken from the OpenUpgrade list but not from the
+  scan: reconcile it before creating. The record may have stayed in the
+  source module, or moved to a module whose local XML IDs changed.
 - A model that disappears from the MCA scan but still exists in the
   source at the scanned commit: do not create a removal.
 - A merge into an existing module: use `replaced`, not `renamed`.
@@ -232,9 +269,10 @@ downgraded.
 - A trivial method body (`return True`, `return False`, `pass`) matching
   another trivial method.
 - A template hook that differs only by the template model.
-- A target that already exists as a sibling in the source version: the
-  body coincidence is not a rename (e.g. `_inverse_is_favorite` vs
-  `toggle_favorite`, where `toggle_favorite` already existed).
+- A target that already exists as a sibling in the source version **and no
+  commit documents the replacement**: the body coincidence is not a rename
+  (e.g. `_inverse_is_favorite` vs `toggle_favorite`, where
+  `toggle_favorite` already existed).
 - A secondary source of a merge where the target only represents part of
   it: do not confirm it as a 1:1 rename.
 
@@ -246,8 +284,9 @@ Create `removed` timelines for:
   `delete_records_safely_by_xml_id`;
 - a structural data record with an explicit `DEL` line in
   `upgrade_analysis.txt` and no successor;
-- non-transient models/elements that truly disappear and have no
-  successor.
+- models/elements that truly disappear and have no successor, including
+  transient models when the removal is explicit (commit, analysis `DEL`,
+  or deletion list); the model lineage covers their fields and methods.
 
 Do not create `removed` for:
 
@@ -261,14 +300,21 @@ Do not create `removed` for:
 - a method unless its model or feature is explicitly removed and it has no
   successor: report method disappearances in bulk, do not draft hundreds
   of removals;
-- a transient model or wizard unless a deletion list names it: report it;
 - technical data in bulk (asset bundles, ACLs, tracking/demo records);
 - an access-rights record when the target replaces `ir.model.access` with
-  `ir.access` (20.0): report the model migration, not per-record moves.
+  `ir.access` (20.0): create the model timeline(s) and report the access
+  records in bulk, not as per-record moves;
+- country/state/language/currency population data moved from `l10n_*`
+  modules into `base`: the source module is the `l10n_*` module, so do not
+  create base timelines for those records;
+- views, actions, menus, and ACLs tied to a removed model: report them in
+  bulk; the model removal is the migration signal.
 
 For a merge with a known target, create one `moved` timeline per source
 pointing to the same target; a merge is not a removal. For a module merge,
-the module timeline uses `replaced`.
+the module timeline uses `replaced`. A thin wrapper/alias fully
+represented by the target may remain confirmed even when the target
+already existed.
 
 Do not create `removed` for every disappeared field, method, or data
 record. Report them as a list of uncertain removals instead.

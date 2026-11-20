@@ -22,6 +22,35 @@ model, a wizard or a feature. Classify first, compare second, create last.
   `{"old.model": {"next_module": "target_module", "next_model": "new.model"}}`.
   The map is keyed by model name and applies to the module being scanned.
 
+## Exporting absent methods for the helper scripts
+
+The helper scripts need one JSON file per transition. When the MCA server
+is remote, its MCP HTTP endpoint can be called directly with `tools/call`
+and the `structuredContent.elements` payload saved as
+`{"elements": [...]}`. This makes a multi-transition batch practical:
+
+```text
+POST <MCA_URL>
+Authorization: Bearer <TOKEN>
+Content-Type: application/json
+
+{"jsonrpc":"2.0","id":1,"method":"tools/call",
+ "params":{"name":"code_list_absent_elements",
+           "arguments":{"module":"payment","version":"15.0",
+                        "repository":"odoo/odoo",
+                        "element_type":"method","limit":1000}}}
+```
+
+Skip transitions where the module does not exist in the target version
+(module rename/merge); the module timeline covers those. Keep the exact
+`last_scanned_commit` when available, but branch names still work for
+`git archive` when the local clone lacks the scan commit.
+
+`batch_method_scan.py` writes one `<module>_<source>_<target>.json` per
+transition plus a `batch_summary.json` that contains only the per-transition
+`out` path and status counts. The candidates are in the per-transition
+files, not in `batch_summary.json`.
+
 ## Step 1 — classify by model
 
 For each absent method, resolve its model in the target version:
@@ -41,9 +70,19 @@ candidates and `--search-modules` to include the base module. Treat a
 cross-model/cross-module match as a draft unless an explicit commit
 confirms it.
 
+Model extraction is a common case: a new mixin receives methods from the
+old model (`mail.alias.mixin` -> `mail.alias.mixin.optional`,
+`mail.thread` -> `mail.track.mixin`). Set `next_model` to the new mixin and
+cite the extraction commit.
+
 Use `code_get_next_version_element(element_type="model", ...)` and
 `code_search_elements` for this. Do not compare against a model that no
 longer exists.
+
+Run the method pass on the **remaining** methods after the model timelines
+are confirmed: model lineage already resolves same-name methods on
+renamed/moved models. Scanning before that produces a large
+`model_removed` bucket that is really covered by the model migration.
 
 When the source model is renamed or merged, resolve the target model in
 the source module first. If it exists there, use it; only fall back to the
@@ -92,7 +131,7 @@ one.
 |---|---|---|
 | `exact` | body ratio >= 0.999, unique target, **and** a meaningful name relation or explicit commit | `[HIGHLY-CONFIDENT]`, create confirmed |
 | `exact_unrelated_name` | body ratio >= 0.999 but name ratio below the threshold | report/review; confirm only with a commit |
-| `target_exists_in_source` | the candidate name already exists in the source version | report/reject; it was not created by the rename |
+| `target_exists_in_source` | the candidate name already exists in the source version | review; confirm only with a commit that documents the semantic replacement |
 | `similar` | body ratio >= 0.92 | `[LESS-CONFIDENT]`, create draft |
 | `weak` | body ratio >= 0.80 | report only |
 | `no_match` | below 0.80 | report only (removed/refactored) |
@@ -123,9 +162,9 @@ Reject candidates even at ratio 1.0 when:
   `_should_force_price_unit` (`return False`) vs `_get_aml_value`
   (`return self.value`);
 - the target method is not present in the MCA target scan;
-- the target name already exists as a sibling in the source version —
-  e.g. `_inverse_is_favorite` vs `toggle_favorite`, where
-  `toggle_favorite` already existed in the source;
+- the target name already exists as a sibling in the source version **and
+  no commit documents the replacement** — e.g. `_inverse_is_favorite` vs
+  `toggle_favorite`, where `toggle_favorite` already existed;
 - the body is identical but the name is unrelated and no commit confirms
   the rename (`exact_unrelated_name`).
 
@@ -162,14 +201,21 @@ Before `code_create_timeline`:
 
 1. Search the target method in the MCA with `code_search_elements` on the
    actual target version/module/model. Filter the hit by exact name and
-   model.
+   model. The scanner's `candidate_module`/`target_module` is **not**
+   authoritative: class inheritance can attribute a method to `base` or to
+   another module (e.g. `_sms_get_number_fields` reported as `sms/base`
+   while the MCA target is `sms/mail.thread.phone`, and
+   `_phone_get_country_field` reported as `base/mail.thread` while the MCA
+   target is `phone_validation/mail.thread.phone`). Use the module/model
+   that actually defines the target in the MCA.
 2. If it is absent, report "target not in MCA scan" and skip.
 3. Create a `moved` timeline with `next_name` (and `next_model` when the
    method moved to another model).
 4. Use `confirm=True` only for `exact` + unique + non-trivial **and** a
    meaningful name relation or an explicit commit; keep `similar` matches
    as drafts. An `exact_unrelated_name` result is report-only unless a
-   commit confirms it.
+   commit confirms it. A `target_exists_in_source` result is confirmable
+   when the note cites a commit that documents the source's retirement.
 5. For a cross-model move, set `next_model`; for a cross-module move, set
    `next_module`. The model lineage alone is not enough when the method
    name changed.
@@ -190,6 +236,13 @@ python3 scripts/method_scan.py \
   --out /tmp/method_candidates.json
 ```
 
+Core modules are not always under `addons/`: `base` lives under
+`odoo/addons/base`, and the 20.0 core tree uses `odoo/addons`. The script
+auto-detects both prefixes. For a large module such as `base` or `mail`,
+run the scanner per transition or in the background; each transition
+writes its own JSON, and the tree cache can grow to hundreds of MB
+(use a dedicated `--cache-dir`).
+
 Optional:
 
 - `--model-map /tmp/models.json` for confirmed model moves;
@@ -206,8 +259,11 @@ Optional:
   for an extension method;
 - `--min-name-ratio 0.5` to flag exact bodies with unrelated names as
   `exact_unrelated_name` instead of `exact`;
-- `--reject-target-existing-in-source` to report a candidate that already
+- `--flag-target-existing-in-source` (formerly
+  `--reject-target-existing-in-source`) to report a candidate that already
   exists as a sibling in the source version as `target_exists_in_source`.
+  The status is advisory: confirm it only with a commit that documents the
+  semantic replacement.
 
 `scripts/batch_method_scan.py` runs the scanner for several transitions in
 one go. It reads a JSON config:
@@ -250,10 +306,33 @@ A second run on `project`, `sale_project`, `sale_mrp` and `purchase_mrp`
 The exact set contained a false positive (`_inverse_is_favorite` ->
 `toggle_favorite`, where the target already existed in the source). With
 `--search-all-models --min-name-ratio 0.5
---reject-target-existing-in-source` the same run produced 2 exact, 14
+--flag-target-existing-in-source` the same run produced 2 exact, 14
 similar, 1 `target_exists_in_source`, 6 `model_removed`, 8
 `extension_model_removed`, 16 weak, and 212 no-match. The cross-model
 search found one additional real move
 (`project.project._compute_rating_request_deadline` ->
 `project.task.type._compute_rating_request_deadline`), and the guard
-rejected the false exact match.
+surfaced the false exact match.
+
+`target_exists_in_source` is advisory. Six confirmed method moves to
+pre-existing targets were reviewed and accepted because their commits
+document the semantic replacement; the guard remains useful for the case
+without such a commit.
+
+A third run on `base` and `mail` (14.0–20.0) scanned 1,094 methods: 30
+exact, 47 similar, 2 ambiguous, 59 weak, 734 no-match, 113
+`model_removed`, 9 `extension_model_removed`, and 100
+`source_not_parsed`. After the model timelines, 32 commit-backed method
+timelines were created; the remaining exact/similar candidates were left
+as a review queue because they lacked an explicit commit or were
+cross-model parallel implementations. The `base` run also needs the
+`odoo/addons` prefix handling described above.
+
+A 23-module run (14.0–20.0, 90 executable transitions) classified 1,212
+absent methods: 17 exact, 33 similar, 1 `exact_unrelated_name`, 1
+`target_exists_in_source`, 3 ambiguous, 98
+`extension_model_removed`, 170 `model_removed`, 836 no-match, and 53
+weak. It produced 25 method timelines (7 confirmed, 18 drafts). Most of
+the remaining exact/similar hits were same-name scan gaps, generic CRUD
+methods, ambiguous multi-candidates, or cross-model mixin extractions
+that needed review.

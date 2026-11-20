@@ -18,15 +18,21 @@ Example config:
   "search_all_models": true,
   "search_modules": ["stock_account", "account"],
   "min_name_ratio": 0.5,
-  "reject_target_existing_in_source": true,
+  "flag_target_existing_in_source": true,
   "include_weak": false,
   "include_no_match": false
 }
 
 Each transition may override `out`, `search_all_models`, `search_modules`,
-`min_name_ratio`, `reject_target_existing_in_source`, `include_weak`, and
-`include_no_match`. The merged output is written to
+`min_name_ratio`, `flag_target_existing_in_source`, `include_weak`, and
+`include_no_match`. The old `reject_target_existing_in_source` key is
+accepted as an alias. The merged output is written to
 `<out_dir>/batch_summary.json`.
+
+For a large module (base, mail) run the batch in the background or per
+transition: each transition writes its own JSON. A missing output file or
+a missing summary is treated as a failure, not silently as an empty
+transition.
 """
 
 from __future__ import annotations
@@ -94,12 +100,17 @@ def build_command(
     ]
     flags = {
         "search_all_models": "--search-all-models",
-        "reject_target_existing_in_source": "--reject-target-existing-in-source",
+        "flag_target_existing_in_source": "--flag-target-existing-in-source",
         "include_weak": "--include-weak",
         "include_no_match": "--include-no-match",
     }
     for key, flag in flags.items():
         value = transition.get(key, config.get(key, False))
+        if key == "flag_target_existing_in_source":
+            value = value or transition.get(
+                "reject_target_existing_in_source",
+                config.get("reject_target_existing_in_source", False),
+            )
         if value:
             command.append(flag)
     name_ratio = transition.get(
@@ -166,7 +177,30 @@ def main() -> int:
                 }
             )
             continue
+        if not os.path.exists(out_path):
+            failures += 1
+            results.append(
+                {
+                    "module": module,
+                    "source": source,
+                    "target": target,
+                    "error": "scanner produced no output file",
+                }
+            )
+            continue
         output = load_json(out_path)
+        if not output.get("summary"):
+            failures += 1
+            results.append(
+                {
+                    "module": module,
+                    "source": source,
+                    "target": target,
+                    "error": "scanner output has no summary",
+                    "stderr": completed.stderr.strip()[-2000:],
+                }
+            )
+            continue
         total.update(output.get("summary", {}))
         results.append(
             {
@@ -188,6 +222,8 @@ def main() -> int:
         json.dump(merged, handle, indent=1)
     print(json.dumps(merged["total"], indent=2), file=sys.stderr)
     print(f"written {merged_path}", file=sys.stderr)
+    if failures:
+        print(f"{failures} transition(s) failed", file=sys.stderr)
     return 1 if failures else 0
 
 

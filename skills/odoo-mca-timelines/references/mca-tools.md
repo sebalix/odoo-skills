@@ -13,8 +13,13 @@ to discover them all.
 - **`module_list_versions` is a hint, not an index.** It can return an
   empty list for a module that exists, stop before the newest version, or
   return duplicate scans for the same version with different manifest
-  values. `module_search` and `module_get_details` are the authority for
-  existence and for `last_scanned_commit`.
+  values. `module_search` and `module_get_details` are the primary
+  authority for existence and for `last_scanned_commit`.
+- **`module_get_details` can return `null` for an existing module.** It
+  returned `null` for `repair` 20.0 while `module_search` and
+  `code_search_elements` still found the module. If it is `null`,
+  cross-check `module_search` and the code scan before concluding that the
+  module disappeared; treat the mismatch as an MCA scan/identity gap.
 - **`code_search_elements` matches names with `ilike`.** `user_id` also
   returns `user_ids`; `stock.quant` also returns
   `stock.quantity.history`. Always filter hits with
@@ -22,10 +27,20 @@ to discover them all.
   `hit.model === source.model`.
 - **`code_create_timeline` returns `{timeline: {id, state}}`** on success
   and `{error: ...}` otherwise. The id/state are not at the top level.
-- **`code_list_timelines` returns the note but not the resolved target
-  fields.** It is enough to audit notes; use
-  `code_get_next_version_element` or `code_get_element_history` to verify
-  what a timeline actually resolves to.
+- **Data `next_name` can be ambiguous across later versions.**
+  `code_create_timeline` then fails with “Several data records match …
+  Specify `next_module`”; pass `next_module` explicitly even when the full
+  XML ID also contains the target module.
+- **The same-module target check is a pre-create gate.** Before
+  `confirm=True`, search the target element in the source module at the
+  target version and fetch the source model's `inherit`. If the source is
+  an extension, or a same-module target exists, link to it. Confirmed
+  timelines cannot be retargeted or deleted through the MCP tools.
+- **`code_list_timelines` returns the note and, in current builds, a
+  `next` target reference.** Use it to deduplicate and to compare the
+  intended target, but still call `code_get_next_version_element` (or
+  `code_get_element_history`) to verify that a confirmed timeline actually
+  resolves and to inspect the full chain.
 - **The note is sanitized.** A `<br/>- <a href="...">...</a>` bullet list
   can be flattened on creation (anchors stripped, URL hoisted above
   `Source:`). Use `<ul><li><a href="...">...</a></li></ul>` and read the
@@ -128,6 +143,12 @@ confirm         create as confirmed for a HIGHLY-CONFIDENT match
 repository      disambiguate when several repos host the module
 ```
 
+For data, a full `next_name` infers the target module only when the XML ID
+is unambiguous across later versions; pass `next_module` otherwise. A
+target module named by OpenUpgrade must still be checked against the MCA
+scan (the record may have stayed in the source module, or a module rename
+may have changed the local XML ID).
+
 `code_create_timeline` returns `{timeline: {id, state, ...}}` on success
 and `{error: ...}` otherwise. The id and state are not at the top level.
 A draft can later be confirmed with
@@ -161,7 +182,9 @@ It returns `total`, `next_version`, `counts`, and `elements`.
 - `counts` gives the current distribution over `uncovered`, `draft`,
   `removed` and defensive `moved`. It is computed from the timeline objects
   before the timeline filters, so it still shows the full distribution when
-  a timeline filter is used.
+  a timeline filter is used. Confirmed `moved` elements leave the absent
+  list, so `counts.moved` normally stays at 0; do not use it as a progress
+  metric. Measure progress with the drop in `total`.
 - Each element carries `element_type`, `module`, `version`, `model`, `name`
   (full XML ID for data), `org`, `repository`, and `timeline`:
   - `timeline=null`: no timeline, to analyze;
@@ -191,19 +214,23 @@ offset          pagination offset
 
 It returns `total` and `timelines`; page with `limit`/`offset` until
 `offset + len(timelines) >= total`. The list exposes the source identity,
-`element_type`, `timeline_type`, `state`, and `note`; it does **not**
-expose the resolved `next_name`/`next_module`/`next_model`. Verify the
-target with `code_get_next_version_element` (or
-`code_get_element_history`) rather than reading it from this list.
+`element_type`, `timeline_type`, `state`, `note`, and (in current builds)
+a `next` target reference. Still verify the target with
+`code_get_next_version_element` (or `code_get_element_history`) rather
+than relying on the list alone: only a confirmed timeline actually
+resolves, and a draft reports its target without changing the element
+state.
 
 For data timelines, `model` is the record model (e.g. `ir.ui.view`) and
 `name` is the **full XML ID** (e.g. `project.assets_backend`). Do not pass
 the concatenated display form as the element identity.
 
 In `code_search_elements`, a data element has two identifiers:
-`name` is the **local** XML ID (`report_simple_label2x7`) and `xml_id` is
-the **full** XML ID (`product.report_simple_label2x7`). Build lookup
-indexes from `xml_id`, not `name`, when comparing against a timeline.
+`name` is the **display name** (it may equal the local XML ID for
+views/actions, but for records such as access rules it is a human label
+like `Administrators can access all User Settings.`) and `xml_id` is the
+**full** XML ID (`product.report_simple_label2x7`). Build lookup indexes
+from `xml_id`, never from `name`, when comparing against a timeline.
 
 ## Element identity
 
@@ -220,7 +247,8 @@ indexes from `xml_id`, not `name`, when comparing against a timeline.
   full set for a module. Use it once per version and type, then work in
   memory. For data elements, the `name` filter matches the display name,
   the local XML ID and the full XML ID. The name filter is `ilike`: always
-  apply an exact-name (and exact-model) filter to the result.
+  apply an exact-name (and exact-model) filter to the result. The returned
+  `name` is the display name; compare data identities with `xml_id`.
 - **The MCA note is sanitized.** Use
   `<p>...</p><p>Source:</p><ul><li><a href="URL">URL</a></li></ul>`.
   A `<br/>- <a>` list can be flattened on creation (anchors stripped, URL
@@ -243,6 +271,11 @@ indexes from `xml_id`, not `name`, when comparing against a timeline.
   `timeline.state="draft"`. Use `timeline_state="draft"` to
   review proposals and `timeline_type="removed"` to report confirmed
   removals.
+- For a large module, fetch all data elements once per module/version and
+  build a `name -> {data_type, noupdate, is_override}` map in memory. This
+  is much cheaper than calling `code_get_element_details` per record and
+  lets you separate structural records from demo/noupdate/override data
+  before matching.
 - Data elements are always restricted to loaded records. Classify them
   with the filters and output fields:
   - `data_type="demo"`: report only;
@@ -328,11 +361,14 @@ indexes from `xml_id`, not `name`, when comparing against a timeline.
 
 Both update tools accept the source identity plus the fields to change.
 Pass only `note` to annotate a draft, or a confirmed timeline (note-only;
-HTML + Source URL required) without touching the rename. A draft timeline
-can be confirmed with `confirm=True` once the note carries a Source URL.
-Once confirmed, semantic fields cannot be modified. For code elements,
-confirm HIGHLY-CONFIDENT matches and keep LESS-CONFIDENT matches as
-drafts for human review.
+HTML + Source URL required) without touching the rename. On a confirmed
+timeline, pass **only** `note`, the source identity and `repository`:
+including `timeline_type`, `next_name`, `next_module` or `next_model` —
+even with the existing value — is rejected with “only its note can be
+updated”. A draft timeline can be confirmed with `confirm=True` once the
+note carries a Source URL. Once confirmed, semantic fields cannot be
+modified. For code elements, confirm HIGHLY-CONFIDENT matches and keep
+LESS-CONFIDENT matches as drafts for human review.
 
 ```text
 code_update_timeline(element_type=..., version=..., module=...,
