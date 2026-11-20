@@ -46,6 +46,7 @@
       "files": [
         "SKILL.md",
         "references/inventory-template.csv",
+        "references/mca.md",
         "references/module-inventory.md",
         "references/module-report-template.md",
         "references/report-template.md",

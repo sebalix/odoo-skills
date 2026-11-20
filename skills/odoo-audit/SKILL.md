@@ -1,9 +1,10 @@
 ---
 name: odoo-audit
 description: Perform a systematic audit of an Odoo project or module set — architecture, security, data model, performance, and upgrade readiness. Use when asked to audit, assess, or run a health check on an Odoo codebase. For reviewing a single change or PR, use the odoo-review skill instead.
-compatibility: Requires the odoo-knowledge skill. Uses subagents when available (up to 4 in parallel); falls back to sequential inline audits otherwise.
+compatibility: Requires the odoo-knowledge skill. Uses subagents when available (up to 4 in parallel); falls back to sequential inline audits otherwise. Uses the odoo-mca MCP server read-only when available.
 metadata:
   requires-skills: odoo-knowledge
+  optional-mcp: odoo-mca
   max-concurrency: "4"
   recommended-subagent: odoo-auditor
 ---
@@ -14,8 +15,10 @@ metadata:
    tabular export) with availability and LOC stats if they have one, then
    complete it following `references/module-inventory.md` (origin and
    upstream detection, module discovery in the directory tree, LOC
-   counting, availability resolution, migration effort). Produce
-   `odoo-audit/module-inventory.csv`, formatted like
+   counting, availability resolution, migration effort). When the
+   `odoo-mca` MCP server is available, use `references/mca.md` for the
+   data it covers; keep the local and GitHub fallbacks for the rest.
+   Produce `odoo-audit/module-inventory.csv`, formatted like
    `references/inventory-template.csv`. Record what is custom vs.
    OCA/standard.
 2. Load the `odoo-knowledge` skill — its routing table maps audit areas
@@ -56,6 +59,15 @@ metadata:
 5. **Report**: produce the global report `odoo-audit/README.md` following
    `references/report-template.md` — it aggregates the module reports
    instead of duplicating them.
+
+## Optional MCA
+
+When the `odoo-mca` MCP server is available, read `references/mca.md`
+and use it read-only. It speeds up the inventory (availability,
+dependency LOC, upstream details) and grounds the model-level upgrade
+analysis. It is optional: every step keeps a fallback, and the audit
+never creates or updates MCA timelines. Keep the deliverables
+tool-agnostic — do not mention the MCA in the reports.
 
 ## Deliverables
 

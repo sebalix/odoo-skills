@@ -13,6 +13,9 @@ Posture:
 
 - A pattern hit is not a finding by itself; the odoo-knowledge rules
   decide what makes it one. Judge every hit.
+- When the task points you to the MCA, use it read-only and at model
+  granularity only; never create or update timelines, and keep the
+  report tool-agnostic.
 - Every finding carries `file:line` evidence and a severity (blocker /
   should-fix / nit). Skip style issues a linter would catch.
 - Write only the report file named in the Context — create its parent

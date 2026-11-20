@@ -34,8 +34,10 @@ user's list before computing anything:
 
 - Found on disk but not in the list → add a row and determine its origin
   like any other module.
-- In the list but not found on disk → keep the row, note `not found on
-  disk` in `comment`; it gets no module report.
+- In the list but not found on disk (typically a dependency) → keep the
+  row, note `not found on disk` in `comment`; it gets no module report.
+  Its LOC comes from the upstream scan when the `odoo-mca` MCP server
+  is available (see `mca.md`).
 - Several copies of the same technical name → ask the user which copy is
   authoritative before auditing.
 
@@ -57,6 +59,9 @@ the order `odoo-core`, `odoo-enterprise`, `oca`, `third-party`,
 | `comment` | free text: local modifications, replacement plans, evidence for the effort estimate, successor/new technical name for `Replaced` / `Renamed` statuses, PR URL for `To review` |
 | `migration_effort_days` | estimated days to migrate to the latest stable Odoo (rubric below) |
 
+Keep `comment` tool-agnostic: do not name the MCA or its tools; cite
+the upstream module, version and URL instead.
+
 ## Origin & upstream detection
 
 Determine `origin` and `upstream` in this order:
@@ -76,11 +81,26 @@ locally modified OCA/standard module keeps its origin; record the
 modification in `comment` — it usually blocks upstream tracking and raises
 migration effort.
 
+When the `odoo-mca` MCP server is available, corroborate the remote
+with `module_get_details` (`repository`, `is_standard`,
+`is_enterprise`, `is_community`, `url`). Do not override an explicit
+local remote: a fork stays `third-party`; record the canonical upstream
+in `comment`.
+
 ## LOC counting
 
-- Use the `odoo-addons-parser` package (PyPI) — it analyzes module folders
-  statically, without an Odoo runtime, and counts **code** lines per
-  language (pygount-based: comments and blank lines are excluded):
+- Count LOC from the module directory on disk, always.
+- When a row has no module directory on disk (typically a dependency),
+  take the LOC from the upstream scan through the `odoo-mca` MCP server
+  when available: `module_get_details` returns `sloc_python`,
+  `sloc_xml`, `sloc_js` and `sloc_css` for the scanned version (see
+  `mca.md`). Do not expand the inventory with transitive dependencies.
+  When the module is not in the MCA either, leave LOC empty and note it
+  in `comment`.
+- For a module on disk, use the `odoo-addons-parser` package (PyPI) —
+  it analyzes module folders statically, without an Odoo runtime, and
+  counts **code** lines per language (pygount-based: comments and blank
+  lines are excluded):
 
 ```python
 from odoo_addons_parser import ModuleParser
@@ -112,11 +132,21 @@ keep those numbers.
 Priority:
 
 1. User-provided input file (see above).
-2. Any API or MCP resource available in the audit environment.
-3. GitHub API, last resort: core/enterprise — check `addons/<name>` in
+2. The `odoo-mca` MCP server when available (see `mca.md`): scanned
+   repositories and branches, module existence per version, migration
+   statuses, renames/replacements and PR URLs.
+3. Any other API or MCP resource available in the audit environment.
+4. GitHub API, last resort: core/enterprise — check `addons/<name>` in
    odoo/odoo and odoo/enterprise for the recent stable branches; OCA —
    check the relevant `OCA/<repo>` repositories; third-party — check the
    upstream remote's branches.
+
+An MCA absence is meaningful only for a repository and branch listed by
+`repo_list_repositories`; for an unscanned one, fall back to the next
+source. Never infer availability from a same-named module in another
+repository (e.g. an OCA backport of a removed core module): the status
+is `Removed` for the core module, with the backport as an alternative in
+`comment`.
 
 The version columns (`18.0`, `19.0`, `20.0`, ...) cover the last 3 stable
 Odoo versions at audit time and record the status of the module in each —
@@ -146,7 +176,9 @@ Estimate in days, rounded to the closest 0.5:
 3. Breaking deltas: scan the module against the odoo-knowledge
    `versions/<X>.md` files for every crossed version; add 0.5–1d per major
    break found (e.g. a `read_group` override, `attrs=` views, `<tree>` tags,
-   `odoo.osv.expression` usage). Cap the penalty at +5d.
+   `odoo.osv.expression` usage). An upstream model rename, move or removal
+   that the local code uses is such a break (see `mca.md`). Cap the
+   penalty at +5d.
 4. Upstream discount: when the target-version status is `Available` and
    the module has no local modification, the effort is "track upstream":
    0.5d. `To review` → estimate the merge/review against the upstream PR

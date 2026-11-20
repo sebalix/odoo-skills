@@ -33,13 +33,14 @@
 
 <!-- Findings that block or weigh on the migration to the latest stable
      Odoo version: blockers, breaking-pattern hits (e.g. `attrs=`,
-     `<tree>` tags, `read_group` overrides, removed APIs), security
-     issues to fix before porting. One bullet per finding: severity,
-     `file:line` evidence, the version delta responsible (odoo-knowledge
-     `versions/<X>.md`, `migrations/common-patterns.md`) and the
-     recommended fix. Close with one line on the effort and the deltas
-     that drove it, consistent with `migration_effort_days` in the
-     inventory CSV. -->
+     `<tree>` tags, `read_group` overrides, removed APIs), upstream
+     model renames/moves/removals used by the local code (source →
+     target model/module), security issues to fix before porting. One
+     bullet per finding: severity, `file:line` evidence, the version
+     delta responsible (odoo-knowledge `versions/<X>.md`,
+     `migrations/common-patterns.md`) and the recommended fix. Close
+     with one line on the effort and the deltas that drove it,
+     consistent with `migration_effort_days` in the inventory CSV. -->
 
 ## Stub variant
 

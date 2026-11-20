@@ -16,6 +16,8 @@ parallel, who writes what) live in the skill workflow.
 - Target Odoo version: <next version to assess the migration against>
 - Availability: <statuses from the inventory CSV>
 - LOC: <python / xml / js / css from the inventory CSV>
+- MCA coverage: <"check at runtime", or the upstream URL and scanned
+  source/target versions>
 - Skill locations: odoo-audit `<path>`, odoo-knowledge `<path>`
 
 ## Task
@@ -44,7 +46,13 @@ parallel, who writes what) live in the skill workflow.
 4. Assess the upgrade readiness: check the module against the target
    version's breaks, and confirm or correct the effort from the Context
    following the migration effort rubric in
-   `<odoo-audit>/references/module-inventory.md`.
+   `<odoo-audit>/references/module-inventory.md`. When the `odoo-mca`
+   tools are available and cover the module, follow
+   `<odoo-audit>/references/mca.md` for model-level evidence only:
+   confirmed model renames/moves and model removals for each crossed
+   version, reported only where the local code references or extends the
+   model. Do not query fields, methods or data records. If the module is
+   not covered, keep the local assessment and skip only the MCA evidence.
 5. Create the report's parent directory if it does not exist, then
    write the report to the path given in the Context: findings with
    severity (blocker / should-fix / nit) and `file:line` evidence; the
@@ -65,5 +73,9 @@ parallel, who writes what) live in the skill workflow.
 
 - Write only the report file named in the Context — never the CSV, the
   global report, another module's file, or the audited code itself.
+- Use the MCA read-only: never create, update or delete timelines.
+- Keep the report tool-agnostic: never name the MCA, its tools or the
+  audit skill's MCA reference; cite the upstream module, model, version
+  and source URL instead.
 - Keep the final answer to the Result section: the orchestrator merges
   one per module into the CSV and the global report.
