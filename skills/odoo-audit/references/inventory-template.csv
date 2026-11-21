@@ -1,7 +1,11 @@
-origin,upstream,technical_name,summary,loc_python,loc_xml,loc_js,loc_css,18.0,19.0,20.0,comment,migration_effort_days
-odoo-core,odoo/odoo,base_gengo,Gengo translation integration,300,60,10,0,Removed,Removed,Removed,removed from the distribution - plan an alternative before migrating,1.0
-odoo-core,odoo/odoo,sale,"Sales orders, quotations, RFQs",42000,26000,9000,400,Available,Available,Available,localized overrides in sale_order.py block a clean upgrade,2.0
-odoo-enterprise,odoo/enterprise,sale_subscription,Subscriptions management,28000,9000,6000,800,To review,To review,To review,extended locally - merge with the upstream PR https://example.com/vendor/repo/pull/42,1.5
-oca,OCA/server-tools,database_expiration,Database expiration banner,120,60,0,0,Available,Available,To migrate,not ported upstream to 20.0 yet - full port effort,1.0
-third-party,vendor/acme/awesome_dashboard,awesome_dashboard,Awesome dashboard widgets,2200,500,1500,200,Available,Renamed,Renamed,renamed to acme_dashboard by the vendor in 19.0,1.0
-custom,-,my_project_core,Project-specific glue and overrides,3500,1200,300,50,To migrate,To migrate,To migrate,"read_group override and attrs= views drive most of the effort",4.0
+origin,upstream,technical_name,loc_python,loc_xml,loc_js,loc_css,18.0,19.0,20.0,pr,comment,migration_effort_days
+odoo-core,odoo/odoo,base_gengo,300,60,10,0,0,0,0,,removed in 20.0,1.0
+odoo-core,odoo/odoo,sale,42000,26000,9000,400,1,1,1,,localized overrides in sale_order.py,2.0
+odoo-enterprise,odoo/enterprise,sale_subscription,28000,9000,6000,800,1,1,1,,local modifications,1.5
+oca,OCA/server-tools,database_expiration,120,60,0,0,1,1,0,20.0: https://github.com/OCA/server-tools/pull/1234,,1.0
+third-party,vendor/acme/awesome_dashboard,awesome_dashboard,2200,500,1500,200,1,1,0,,renamed to acme_dashboard in 19.0 (19.0 only),1.0
+oca,OCA/social,mail_preview_base,0,64,101,0,0,0,0,,replaced by core mail in 16.0,0
+custom,-,my_project_core,3500,1200,300,50,0,0,0,,,4.0
+custom,-,my_project_core_legacy,800,200,0,0,0,0,0,,not installed,0
+oca,OCA/server-tools,new_dependency,120,60,0,0,1,1,0,,New - required by module my_project_core,0
+third-party,vendor/acme/legacy_widget,legacy_widget,200,0,0,0,0,0,0,,unknown; not in scanned repositories,0.5
