@@ -1,7 +1,8 @@
 # Evidence sources
 
-The MCA scan is the authority for what exists. OpenUpgrade and Odoo/OCA
-git provide the element-specific mapping and the URL cited in the note.
+The MCA scan is the authority for what exists. OpenUpgrade, target-branch
+PRs, and Odoo/OCA git provide the element-specific mapping and the URL
+cited in the note.
 
 ## 1. MCA scans
 
@@ -11,9 +12,11 @@ source-side to-do list.
 
 - `module_list_versions` is a hint only: it can be empty for an existing
   module, stop before the newest version, or return duplicate scans.
-- `module_get_details` is the primary authority, but it can return `null`
-  for an existing module (`repair` 20.0). Cross-check `module_search` and
-  the code scan before concluding the module disappeared.
+- `module_get_details` is the primary authority, but it can return no
+  `modules` entry (empty or null) for an existing module (`repair` 20.0).
+  It returns one entry per repository; select the requested one.
+  Cross-check `module_search` and the code scan before concluding the
+  module disappeared.
 - Record `last_scanned_commit` for every transition. The source at that
   commit is the reference when the local clone and the MCA disagree.
 - Several scans for one version can resolve the absent list against a
@@ -22,6 +25,10 @@ source-side to-do list.
   scan/identity gap; do not create a removal.
 - Use `code_search_elements` to fetch target candidates; verify the source
   element exists in the MCA before creating its timeline.
+- Record the first version where the target module is actually scanned.
+  `module_list_versions` can omit an intermediate version; a module whose
+  target appears later than the source-version successor leaves a scan gap,
+  not a missing successor. State that gap in the timeline note.
 
 ## 2. OpenUpgrade layout
 
@@ -67,6 +74,11 @@ at all: only `apriori.py` is available for 19.0 -> 20.0.
 - **Distinguish Odoo-core from OCA entries.** `l10n_eu_service` ->
   `l10n_eu_oss` is an Odoo-core merge; `l10n_eu_oss` ->
   `l10n_eu_oss_oca` is OCA-only.
+- **OCA module absorbed into core.** A `merged_modules` entry such as
+  `"mail_preview_base": "mail"` (under `# OCA/social`) means the OCA
+  module's functionality was absorbed by a core module. Create a
+  `replaced` module timeline with the core module as `new_module`; the
+  OCA module itself disappears.
 
 Parse the dictionaries with `ast`:
 
@@ -164,6 +176,30 @@ not always named after the model (in 16.0 `project.task` lives in
 `addons/project/models/project.py`). Prefer the scan commit SHA over the
 branch name in blob URLs.
 
+### Closed target-branch PRs
+
+For OCA module renames/replacements, search closed/merged PRs on the
+target branch before falling back to a draft:
+
+```text
+https://github.com/OCA/<repo>/pulls?q=is:pr+is:closed+<module>
+```
+
+For core modules, use the `odoo/odoo` commit history and PRs. Also search
+the old module name and, when the module moved repositories, the target
+repository. Read the PR title, body and comments. Phrases such
+as "X was Y", "renamed to", "replaced by", "moved to", "no longer needed",
+or "full functionality is now in Z" are module-level evidence when they
+name both sides.
+
+A PR on the target branch is strong evidence; a PR on an older branch is
+context only. Cite the PR first in the note's `Source:` list, then the
+commit or OpenUpgrade entry. A closed (not merged) PR is still valid when
+its comments explicitly explain the rename/replacement, for example a
+module moved to another repository or its functionality was absorbed
+elsewhere. If the GitHub API rate-limits, the HTML PR search page is
+enough.
+
 ### Newest branch without scripts
 
 The 20.0 branch may have no `scripts/<module>` at all. Do not skip the
@@ -177,11 +213,16 @@ element itself.
 
 | Element | Valid evidence |
 |---|---|
-| module | `apriori.py` `renamed_modules` / `merged_modules` |
+| module | `apriori.py` `renamed_modules` / `merged_modules`; closed/merged target-branch PR naming the old and new module |
 | model | `apriori.py` `renamed_models` / `merged_models`, analysis `obsolete model`, migration script |
 | field | analysis line (`renamed to`, `DEL`, `NEW`, type change), field renames in a migration script |
 | data | analysis `DEL`/`NEW`/`renamed` XML line, `_renamed_xmlids` / `_deleted_xmlids` / `_deleted_xml_records`, `delete_records_safely_by_xml_id` |
 | method | migration script only when it names the method hook; otherwise the Odoo/OCA commit or target-branch source file |
+
+For a module, an `apriori.py` entry or an explicit target-branch PR/commit
+is module-level evidence. When an OCA module is absorbed into core, add the
+OCA PR/commit that closed it and the `odoo/odoo` commit/source that
+provides the replacement; there is no same-name core module to point at.
 
 For a field, require the source **model and field** on the same analysis
 line. For data, require the full XML ID; for a model, the exact model
@@ -210,15 +251,20 @@ evidence: drop it.
 https://github.com/OCA/OpenUpgrade/blob/<branch>/openupgrade_scripts/apriori.py
 https://github.com/OCA/OpenUpgrade/blob/<branch>/openupgrade_scripts/scripts/<module>/<version>/<file>
 https://github.com/odoo/odoo/blob/<branch>/addons/<module>/<path>
+https://github.com/odoo/odoo/blob/<branch>/odoo/addons/<module>/<path>
 https://github.com/odoo/odoo/commit/<sha>
 https://github.com/OCA/<repo>/blob/<branch>/<path>
 https://github.com/OCA/<repo>/commit/<sha>
+https://github.com/OCA/<repo>/pull/<number>
 ```
 
-In the note, order bullets: Odoo/OCA commit, PR, OpenUpgrade work note,
+In the note, order bullets: target-branch PR/commit, OpenUpgrade work note,
 migration script, analysis/apriori, module tree. Use the full URL as link
-text; no labels. For OCA modules, use the OCA repository commit rather
-than an `odoo/odoo` commit.
+text; no labels. For an OCA module renamed or merged within OCA, use the
+OCA repository PR/commit rather than an `odoo/odoo` commit. For an OCA
+module absorbed into core, cite the `apriori.py` `merged_modules` entry,
+the OCA PR/commit that closed the module, and the `odoo/odoo`
+commit/source that provides the replacement.
 
 Extract a module tree at a commit:
 

@@ -7,20 +7,25 @@ note.
 
 ## 1. Pre-confirm same-module gate
 
-For every model rename/merge and every cross-module or cross-model target:
+Apply the gate to every model rename/merge and every cross-module or
+cross-model model/field/method target. Data records also require the
+exact-XML-ID check in §2 step 3 and §3.
 
 1. Search the target element in the **source module** at the target
-   version. Filter by exact name/model (`code_search_elements` is `ilike`).
+   version. Filter by exact identity (`code_search_elements` is `ilike`;
+   use `xml_id` for data).
 2. Fetch the source model details with `code_get_element_details` and read
    `inherit`.
 3. Classify:
 
-| Source `inherit` | Same-module target `inherit` | Action |
+| Source `inherit` | Same-module target | Action |
 |---|---|---|
-| non-empty | non-empty | **mandatory**: use the same-module target |
-| empty | non-empty | preferred: use the same-module target |
+| non-empty | extension (non-empty) | **mandatory**: use the same-module target |
+| empty | extension (non-empty) | preferred: use the same-module target |
+| non-empty | none | extension removal or review; no base link without a commit |
+| empty | none | cross-module/cross-model move; verify the target |
 | unknown | any | review before confirming |
-| any | empty | base target is usually correct |
+| any | base (empty) | base target is usually correct |
 
 4. If the source module has a same-module element, use it. Omit
    `next_module` when it is unchanged (the source module); setting it
@@ -56,7 +61,9 @@ Classification cautions:
 
 1. Page `code_list_timelines` to `total`. For every confirmed `moved`
    timeline, run `code_get_next_version_element` and require
-   `state="available"` with the expected target.
+   `state="available"` with the expected target. Use
+   `code_get_element_lineage` (or `code_get_elements_lineage` for up to
+   100 elements) to inspect a full chain.
 2. Run the same-module gate for every cross-module timeline.
 3. Re-search the target version for every source name/XML ID:
    - data: same module, old XML ID still present -> `invalid_move`;
@@ -65,6 +72,35 @@ Classification cautions:
    section, working URLs.
 5. Record `id | state | source | current target | corrected target |
    reason`.
+
+### Module timeline checks
+
+For `migration_create_timeline` / `migration_update_timeline`:
+
+1. `migration_list_timelines(module=..., repository=...)` has no
+   duplicate before creating.
+2. `new_module` exists in the MCA at its first scanned version. If it is
+   absent at `starting_version` but appears later, record an MCA scan gap;
+   do not reject the mapping for that reason alone. Confirm the timeline
+   only when the rename/replacement itself is explicit (apriori,
+   target-branch PR/commit, migration script); otherwise keep it as a
+   draft. The note must state the target's first scanned version when it
+   is later than `starting_version`.
+3. The source module is absent from the target branch. When the MCA has no
+   later version, a 404 on the module directory of an existing branch
+   confirms the module stopped; a scan gap is not a removal.
+4. A closed/merged PR on the target branch is valid module evidence when
+   its title, body or comments explicitly name the old and new module
+   ("was X", "renamed to", "replaced by", "moved to", "no longer needed;
+   full functionality is in Z"). Verify the PR's base branch is the target
+   branch; a PR on an older branch is context only. Put the PR URL first
+   in the note's `Source:` list.
+5. Read the note back: tag, `<ul>` Source section, working URLs, the
+   `apriori.py` `renamed_modules` / `merged_modules` entry when one
+   exists, and the target-branch PR/commit when one exists.
+6. After confirmation, `migration_get_module_status` reflects the target.
+   Before it exists the status can still say `migrate`; `apriori.py` is
+   the authority for OCA -> core absorptions.
 
 ## 3. Source still exists
 
@@ -107,6 +143,9 @@ Return a compact report:
   elements leave the list; report the drop in `total` as the
   resolved-by-moves figure.
 - created timelines: id, transition, element, type, state, confidence.
+- module timelines whose target is first scanned after `starting_version`
+  (MCA scan gap), with the target-branch PR/commit or apriori evidence
+  used and the gap stated in the note.
 - method classification counts; list `exact_unrelated_name`,
   `target_exists_in_source`, ambiguous and other rejected false positives
   separately.
@@ -119,7 +158,6 @@ Return a compact report:
 - skipped already-existing; reported population/reference datasets and
   override/extension removals; uncertain candidates and why they were not
   created.
-- population/reference datasets reported rather than drafted.
 - tool limitations and MCA data-quality gaps.
 
 ## 6. Population data reporting

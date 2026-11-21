@@ -24,7 +24,8 @@ Example config:
 }
 
 Each transition may override `out`, `search_all_models`, `search_modules`,
-`min_name_ratio`, `flag_target_existing_in_source`, `include_weak`, and
+`min_name_ratio`, `min_ratio`, `weak_ratio`, `github_repo`, `target_ref`,
+`no_url`, `flag_target_existing_in_source`, `include_weak`, and
 `include_no_match`. The old `reject_target_existing_in_source` key is
 accepted as an alias. The merged output is written to
 `<out_dir>/batch_summary.json`.
@@ -125,6 +126,17 @@ def build_command(
         if isinstance(search_modules, str):
             search_modules = [search_modules]
         command.extend(["--search-modules", ",".join(search_modules)])
+    for key, flag in (
+        ("min_ratio", "--min-ratio"),
+        ("weak_ratio", "--weak-ratio"),
+        ("github_repo", "--github-repo"),
+        ("target_ref", "--target-ref"),
+    ):
+        value = transition.get(key, config.get(key))
+        if value is not None:
+            command.extend([flag, str(value)])
+    if transition.get("no_url", config.get("no_url", False)):
+        command.append("--no-url")
     commits_path = config.get("commits")
     if commits_path:
         command.extend(["--commits", commits_path])

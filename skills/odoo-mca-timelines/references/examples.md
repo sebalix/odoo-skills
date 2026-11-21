@@ -6,9 +6,9 @@ not as a substitute for the element-specific evidence.
 ## Module lineage is not model lineage
 
 Confirming the module timeline alone is not enough when model names change.
-An absorbed module (`hr_contract`, `base_vat`, `fetchmail`, …) is out of
-scope unless requested: the table lists model timelines that can feed the
-requested target, not permission to create the module timeline.
+An absorbed module with an explicit `apriori.py` rename/merge entry gets
+its module timeline without asking, within the requested version range;
+the table lists model timelines that still need their own links.
 
 | Module | Target | Model timelines still needed |
 |---|---|---|
@@ -17,6 +17,45 @@ requested target, not permission to create the module timeline.
 | `hr_contract` 18.0 | `hr` (replaced) | `hr.contract` -> `hr.version`, plus field renames |
 | `l10n_fr_fec` 17.0 | `l10n_fr_account` (replaced) | `account.fr.fec` is removed; no successor model |
 | `sale_product_configurator` 17.0 | `sale` (replaced) | `sale.product.configurator` is removed |
+
+## OCA module absorbed into core
+
+`mail_preview_base` 15.0 (OCA/social) -> `mail` 16.0 is a `replaced`
+module timeline, not a rename: OCA/social's 16.0 branch has no
+`mail_preview_base` directory, PR #1183 was closed because the preview is
+included in core, and OpenUpgrade 16.0 lists
+`"mail_preview_base": "mail"` in `merged_modules` under `# OCA/social`.
+
+The module's JS extended the legacy `mail.DocumentViewer`, which 16.0
+removes (commit `44cfa0358737`); the replacement is the core
+`AttachmentViewer`/`AttachmentViewerViewable` preview (commit
+`f3590959b0d3`). Cite the apriori entry, the OCA PR and the core
+commit/source in the note.
+
+The module has no models, fields or methods. Its one `ir.ui.view`
+(`view_attachment_form_mail_preview_base`) has no successor in core and
+stays uncovered: report it, do not invent a `moved` target.
+
+## Target-branch PR and scan gap
+
+`stock_picking_type_shipping_policy` 17.0 (OCA/wms) ->
+`stock_picking_type_force_move_type` 18.0 (OCA/stock-logistics-workflow)
+is confirmed from
+[PR #1888](https://github.com/OCA/stock-logistics-workflow/pull/1888),
+whose title says "(was stock_picking_type_shipping_policy)" and whose
+body says the module moved
+repositories and the old `shipping_policy` field is replaced by
+`force_move_type`. The source module last exists in 17.0 and the target
+is first scanned in 18.0. The timeline is created at source 17.0, starts
+at 18.0, and the note states the target version and the repository move.
+Cite the target-branch PR first, then the migration commit and both
+module trees.
+
+When the source module disappears several versions before the target is
+first scanned, the same rule applies, but confirm only if the rename is
+explicit (target-branch PR/commit, apriori entry or migration script) and
+state the MCA scan gap in the note. Otherwise keep the timeline as a
+draft.
 
 ## Module split example
 

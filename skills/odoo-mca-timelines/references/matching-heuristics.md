@@ -18,9 +18,9 @@ For data, the server only lists records loaded by the module. Classify
 the rest before matching:
 
 - `is_override=True`: report an extension removal, not a removal;
-- `data_type="demo"` / `noupdate=True`: allowed when explicit deletion,
-  rename or move evidence exists; these are real XML IDs and may be
-  referenced by custom modules;
+- demo (`data_type="demo"`) or noupdate (`noupdate=True`) records:
+  allowed when explicit deletion, rename or move evidence exists; these
+  are real XML IDs and may be referenced by custom modules;
 - structural records (`data_type="data"`, `noupdate=False`,
   `is_override=False`): normal matching;
 - population/reference records (country, state, language, currency, chart
@@ -30,22 +30,25 @@ the rest before matching:
   evidence exists.
 
 For a large module, fetch all data elements once per module/version and
-build a `name -> {data_type, noupdate, is_override}` map in memory instead
-of calling `code_get_element_details` per record. This makes it cheap to
-separate structural records from population data and large mechanical sets
-(e.g. the 2,813 `l10n_fr` chart/report records, or the 360 demo analytic
-lines in `hr_timesheet`). Do not create hundreds of mechanical links:
-require element-specific evidence per record.
+build a full-XML-ID map in memory instead of calling
+`code_get_element_details` per record. Use the full XML ID as the key
+(`name` in the absent list, `xml_id` in `code_search_elements`), not the
+display `name`; map it to `{data_type, noupdate, is_override}`. This makes
+it cheap to separate structural records from population data and large
+mechanical sets (e.g. the 2,813 `l10n_fr` chart/report records, or the 360
+demo analytic lines in `hr_timesheet`). Do not create hundreds of
+mechanical links: require element-specific evidence per record.
 
 Then fetch the target candidates once per `(version, module,
 element_type)` with `code_search_elements`, scoped to the modules/models
 implied by the model rename map and the absent elements. Keep the
 results in memory; a module with ~700 fields and ~1000 methods is normal.
 
-The name filter is `ilike`: filter every result with
-`hit.name === source.name` (and `hit.model === source.model` for
-fields/methods). A hit that only shares a prefix (`user_id` vs `user_ids`)
-is not a target.
+The name filter is `ilike`: filter every result by exact identity. For
+fields/methods use `hit.name === source.name` and
+`hit.model === source.model`; for data use `hit.xml_id` (the full XML ID),
+not `hit.name` (the display name). A hit that only shares a prefix
+(`user_id` vs `user_ids`) is not a target.
 
 The absent list does not carry `field_type` or `comodel_name`. Fetch them
 from the source version with `code_search_elements` or
@@ -67,7 +70,9 @@ the source element is an extension of a model owned by another module.
 Call `code_get_next_version_element` first. If `state="available"`, the
 link is confirmed and the element can be skipped. If `timeline` has
 `state="draft"`, a draft already exists: skip it or review it; do not
-create a duplicate. The draft does not make the element resolved.
+create a duplicate. The draft does not make the element resolved. To
+inspect a multi-version chain, use `code_get_element_lineage` (set
+`to_version`) or `code_get_elements_lineage` for up to 100 elements.
 
 For a module rename/replacement, `code_list_absent_elements` resolves
 through the module lineage only when the module timeline is confirmed.
@@ -83,15 +88,17 @@ analysis, and migration-script renames for the transition.
 Resolve the target model in the **source module** first. If it exists
 there, the target is that same-module element; linking to the base model
 in another module is wrong. Only fall back to the base module when the
-source module has no element for the target model. Run the pre-confirm
-gate in `audit-report.md`; a non-empty `inherit` makes the
-same-module rule mandatory for an extension.
+source module has no element for the target model and the source is not
+an extension; an extension with no same-module target is an extension
+removal or a review. Run the pre-confirm gate in `audit-report.md`; a
+non-empty `inherit` makes the same-module rule mandatory for an
+extension.
 
 Consequences:
 
 - If the model is renamed and the field/method keeps its name on the
-  renamed model, no field/method timeline is needed: the model lineage
-  covers it.
+  renamed model, no field/method timeline is needed once the model
+  timeline is **confirmed**: the model lineage covers it.
 - A renamed model in module `M` targets the target model in `M` when it
   exists, not the base model in another module. An extension makes this
   mandatory.
@@ -109,7 +116,8 @@ A field can move to the model named in the target model's `_inherits`
 (e.g. `hr.employee` inherits `hr.version` in 19.0). The field keeps its
 name but lives on the delegated model:
 
-- Read `_inherits` from the target model details.
+- Read `inherits` (the model's `_inherits`) from the target model
+  details.
 - For an absent field on the delegating model, search the delegated model
   first and prefer the **stored** field there over a related same-name
   field on the delegating model.
@@ -133,10 +141,10 @@ Rank by normalized code/data similarity, then by name similarity. Do not
 create every pair in a group.
 
 Grouping keys come from the element summaries: `code_get_element_details`
-on a **model** returns its full `fields[]` (`name`, `field_type`) and
-`methods[]` (`name`, `signature`), so one call per model builds the whole
-candidate inventory; reserve per-element details for the final
-comparison (step 5).
+on a **model** returns its `fields[]` (`name`, `field_type`) and
+`methods[]` (`name`, `signature`), so one call per model element (module +
+model) builds that module's candidate inventory; reserve per-element
+details for the final comparison (step 5).
 
 ## 5. Normalize and compare
 
@@ -241,8 +249,9 @@ then use a bulleted `Source:` section with one full URL per bullet:
 Use the `<ul><li>` form: the MCA sanitizer can flatten a `<br/>- <a>`
 list on creation. Read the note back after creating the timeline.
 
-When no commit is found, keep the OpenUpgrade link only; the tag is not
-downgraded.
+When no commit is found, keep the element-specific OpenUpgrade link for a
+model/field/data; for a method cite the target-branch source file. The tag
+is not downgraded.
 
 ## 8. Common false positives
 
@@ -295,11 +304,12 @@ Create `removed` timelines for:
 Do not create `removed` for:
 
 - a model with non-empty `next_defined_in` (it still exists in another
-  module, typically `base`);
+  module, typically `base`): report an extension removal or a cross-module
+  move, not a removal;
 - a data record with `is_override=True` (it overrides another module's
   record);
 - a demo record without an explicit `DEL`/deletion-list entry; demo
-  records may be timed when the removal is explicit;
+  records may get a removal timeline when the removal is explicit;
 - a `noupdate=True` record without explicit deletion, rename or move
   evidence: existing databases keep it;
 - a method unless its model or feature is explicitly removed and it has no

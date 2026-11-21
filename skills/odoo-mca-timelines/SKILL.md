@@ -6,11 +6,11 @@ description: >-
   Starts from the MCA absent-element list, then finds what each
   model/field/method/data became using OpenUpgrade (apriori.py,
   upgrade_analysis.txt, pre/post-migration scripts), MCA element scans,
-  and Odoo git history. Detects module renames/merges/removals and
-  creates confirmed timelines for [HIGHLY-CONFIDENT] matches and drafts
-  for [LESS-CONFIDENT] ones, with source URLs. Use when asked to populate
-  or update MCA timelines, or to analyze what a module or code element
-  became between Odoo versions.
+  Odoo/OCA git history, and closed target-branch PRs. Detects module
+  renames/merges/removals and creates confirmed timelines for
+  [HIGHLY-CONFIDENT] matches and drafts for [LESS-CONFIDENT] ones, with
+  source URLs. Use when asked to populate or update MCA timelines, or to
+  analyze what a module or code element became between Odoo versions.
 compatibility: >-
   Requires the odoo-mca MCP server. Uses OpenUpgrade and an Odoo git
   clone when available.
@@ -26,9 +26,11 @@ high-confidence matches, drafts for uncertain ones. This skill covers the
 curation workflow only; load `odoo-knowledge` for Odoo version and
 migration rules.
 
-Evidence order: **MCA scans** (what exists) -> **OpenUpgrade** (explicit
-renames and deletions) -> **Odoo/OCA git history and source** (code
-confirmation and note URLs).
+Search order: **MCA scans** (what exists) -> **OpenUpgrade** (explicit
+renames and deletions) -> **closed target-branch PRs and Odoo/OCA git
+history/source** (explicit rename/replacement statements, code
+confirmation and note URLs). In the note, cite the target-branch PR or
+commit first, then OpenUpgrade.
 
 ## When to use
 
@@ -45,12 +47,15 @@ version range, element types, removal policy, and confidence policy.
 Default version range: the oldest and newest MCA versions. Default
 confidence: `[HIGHLY-CONFIDENT]` matches are confirmed,
 `[LESS-CONFIDENT]` matches are drafts; state explicitly when the user asks
-for drafts only. Never modify the user's Odoo checkouts.
+for drafts only. Absorbed modules with an explicit apriori rename/merge
+entry are in scope even during a run focused on another module; see
+Step 2. Never modify the user's Odoo checkouts.
 
 Check the environment:
 
 - MCA tools resolve: `code_list_absent_elements`,
   `code_search_elements`, `code_get_next_version_element`,
+  `code_get_element_lineage`, `code_get_elements_lineage`,
   `code_create_timeline`, `migration_create_timeline`.
 - OpenUpgrade branches are readable with `git show` (no checkout switch);
   read `references/evidence-sources.md` for layout and extraction commands.
@@ -63,12 +68,15 @@ Check the environment:
 
 - **Confirm only high-confidence evidence; draft the rest.** Confirm when
   an explicit OpenUpgrade/apriori/migration-script rename, an explicit
-  Odoo/OCA rename commit, or identical normalized code/data with a unique
+  Odoo/OCA rename commit, a closed/merged PR on the target branch whose
+  title, body or comments explicitly state the module was renamed,
+  replaced or moved, or identical normalized code/data with a unique
   structural match is documented, and the note carries a `Source:` URL.
   Confirmed timelines are locked; confirmation is a one-way decision.
 - **Never confirm a cross-module target before the same-module check.**
   If the source module has an extension of the target element, or the
-  source model is an extension, use the same-module element. Confirmed
+  source model is an extension, use the same-module element. For data,
+  verify the old XML ID is absent from the source module. Confirmed
   mislinks can only be fixed in the MCA UI.
 - **Tag every note** with `[HIGHLY-CONFIDENT]` or `[LESS-CONFIDENT]`.
   The note is HTML; end it with
@@ -77,15 +85,17 @@ Check the environment:
 - **Cite element-specific sources.** `apriori.py` covers only
   modules/models and `upgrade_analysis.txt` only models/fields/XML
   records. Never cite either for a method; a migration script is valid
-  only when it names the method hook. Put the commit/PR first, then
-  OpenUpgrade; one strong element-specific source beats several
+  only when it names the method hook. Put the target-branch PR or commit
+  first, then OpenUpgrade; one strong element-specific source beats several
   transition-level links. Full order and OCA URLs:
   `references/evidence-sources.md`.
-- **Filter every search hit by exact name/model.** `code_search_elements`
-  is `ilike`; `user_id` also returns `user_ids`.
+- **Filter every search hit by exact identity.** `code_search_elements`
+  is `ilike`; `user_id` also returns `user_ids`. For data use `xml_id`,
+  not the display `name`.
 - **Deduplicate first.** Start from `timeline_state="none"`; page
-  `code_list_timelines` and `migration_list_timelines` to `total` before
-  creating. Never overwrite a confirmed timeline.
+  `code_list_timelines` to `total` before creating.
+  `migration_list_timelines` returns all matching module timelines and is
+  not paginated. Never overwrite a confirmed timeline.
 - **Prefer `moved` over `removed`.** Create `removed` only for explicit
   deletions or elements with no successor. Report uncertain
   disappearances instead of flooding the MCA.
@@ -110,14 +120,29 @@ Check the environment:
 
 Use `module_search(name=<module>)` and `module_get_details` for each
 version. `module_get_details` is the primary authority for existence and
-`last_scanned_commit`, but it can return `null` for an existing module:
-cross-check `module_search` and any `code_search_elements` hit before
-concluding it disappeared.
+`last_scanned_commit`; it returns one entry per repository hosting the
+module, so select the entry for the requested repository. It can return no
+`modules` entry (empty or null) for an existing module: cross-check
+`module_search` and any `code_search_elements` hit before concluding it
+disappeared.
 
 Treat `module_list_versions` as a hint only. Record version, repository,
 manifest version, scan commit, and existence. Check
 `migration_get_module_status` for hints and list existing module/code
-timelines.
+timelines. It can still show `migrate` for an OCA module absorbed into
+core while `apriori.py` lists the merge, so treat the status as a hint,
+not evidence.
+
+If the module has no later MCA version, check the OCA repository's later
+branches for the module directory (a 404 on an existing branch confirms
+it stopped) and read the closing PR/commit. Also search closed PRs on the
+target branch (see Step 2). Do not treat a scan gap as a removal.
+
+`module_list_versions` can also stop before the newest version or omit an
+intermediate one. When a source module stops before the target module
+appears, record the gap explicitly: the timeline's `starting_version` is
+still the next global version, but the target may not be scanned until
+later.
 
 ### Step 2 — create module timelines
 
@@ -125,17 +150,53 @@ Create one timeline per source module at its last existing version:
 `migration_create_timeline(module=..., version=..., new_module=...,
 timeline_type=..., note=..., confirm=..., repository=...)`. Use
 `confirm=True` only for an explicit rename/replacement with a `Source:`
-URL. A module with no successor has no module timeline: report it.
+URL. A successor is the target named by `apriori.py` or the rename/merge
+evidence, even when it is a core module with a different name
+(`mail_preview_base` -> `mail`). A module with no successor has no module
+timeline: report it.
+
+Before confirming an OCA module rename/replacement, search closed PRs on
+the target branch:
+
+```text
+https://github.com/OCA/<repo>/pulls?q=is:pr+is:closed+<module>
+```
+
+For core modules, use the `odoo/odoo` commit history and PRs instead. Read
+the title, body and comments for explicit statements such as
+"X was Y", "renamed to", "replaced by", "moved to", or "no longer needed;
+full functionality is in Z". A closed/merged target-branch PR is
+high-confidence module evidence: put its URL first in the note's Source
+list. A PR on an older branch is context, not target-branch evidence.
 
 - 1:1 rename -> `renamed`.
 - Merge into an existing module -> `replaced`.
+- OCA module absorbed into core -> `replaced`, with the core module as
+  `new_module`; confirm from `apriori.py` `merged_modules`, the OCA
+  PR/commit that stopped the module, and the core commit/source that
+  provides the replacement.
 - Module split (source survives) -> no module timeline; per-element
   `moved` with `next_module`.
 
-An absorbed module (`hr_contract`, `base_vat`, `fetchmail`, …) is out of
-scope unless requested: its module timeline is not created during an
-unrelated run, but key model/field timelines can still feed the requested
-target.
+When the source module disappears before the target's first MCA scan,
+create the timeline at the source's last existing version anyway: this is
+the mapping the migration analysis needs. If the target is absent at
+`starting_version` but appears later, keep the timeline as a draft unless
+the rename is explicit (apriori entry, target-branch PR/commit); when
+confirming, state in the note that the target is first scanned in version
+X and that the gap is an MCA scan gap.
+
+An absorbed module with an explicit `apriori.py` `renamed_modules` /
+`merged_modules` entry (`hr_contract`, `base_vat`, `fetchmail`,
+`mail_preview_base`, …) is not an uncertain case: create its module
+timeline at its last existing version without asking the user, even
+during a run focused on another module. Limit this to the requested
+version range and the module's direct lineage; do not expand into
+unrelated repository-wide sweeps. Do not ask for approval when the entry
+and the target module are verified; create the confirmed timeline and
+report it. Model/field timelines can still feed the requested target.
+Report a module only when no explicit rename/merge entry exists or the
+source/target is not scanned.
 
 A confirmed module timeline resolves **same-name** elements only. Renamed
 models still need their own timelines (`coupon` -> `loyalty` required
@@ -155,10 +216,12 @@ Worklists:
 - structural data records: `element_type="data"`, `data_type="data"`,
   `noupdate=False`, `is_override=False` (excluding the population/reference
   records below);
-- data that may get per-record timelines with element-specific evidence:
-  `data_type="demo"` and `noupdate=True` (ACLs, rules, menus, actions,
-  views/report templates, groups, payment records, UoM records and
-  categories, demo records);
+- structural records that may get per-record timelines with
+  element-specific evidence: ACLs/rules (`ir.model.access`, `ir.rule`,
+  `ir.access`), menus, actions, views/report templates, groups, payment
+  records, and UoM records/categories;
+- demo (`data_type="demo"`) or `noupdate=True` records: real XML IDs
+  that may be matched when explicit deletion/rename/move evidence exists;
 - report an extension removal: `is_override=True`;
 - report as a dataset, no per-record timelines: population/reference
   records (country, state, language, currency, chart templates, tax/report
@@ -173,24 +236,27 @@ resolve the actual target with `code_get_next_version_element` /
 ### Step 4 — resolve the absent elements
 
 1. Call `code_get_next_version_element` first. `state="available"` means
-   skip; a draft means review it instead of creating a duplicate.
-2. Classify before matching: demo and `noupdate=True` records may be
+   skip; a draft means review it instead of creating a duplicate;
+   `state="unknown"` means the next version/branch is not scanned: report
+   a scan gap, do not create.
+2. Classify before matching: demo or `noupdate=True` records may be
    matched when explicit deletion/rename/move evidence exists (they are
    real XML IDs that custom modules can reference); override -> report an
    extension removal; population/reference data -> report the dataset;
-   model with non-empty `next_defined_in` -> report an extension removal.
-   For large mechanical sets without per-record evidence, report the set.
+   model with non-empty `next_defined_in`: an extension source is an
+   extension removal; a base source is a cross-module model move. For
+   large mechanical sets without per-record evidence, report the set.
 3. Build the model rename map from apriori, analysis, and migration
    scripts.
 4. Fetch target candidates once per `(version, module, element_type)`.
-   Filter by exact name/model. For fields/methods also search by name
-   without the model filter to catch cross-model moves.
+   Filter by exact identity (`xml_id` for data). For fields/methods also
+   search by name without the model filter to catch cross-model moves.
 5. For data moved across modules, reconcile the OpenUpgrade target with
    the actual MCA scan. A script can name a different module than the scan,
    or a module rename can change the local XML ID. See
    `references/evidence-sources.md`.
-6. For methods, run `references/method-matching.md` after model lineage is
-   applied, and pass the confirmed model map to the scanner.
+6. For methods, run `references/method-matching.md` after confirmed model
+   lineage is applied, and pass the confirmed model map to the scanner.
 
 ### Step 5 — match candidates
 
@@ -199,8 +265,8 @@ resolve the actual target with `code_get_next_version_element` /
   signature only as a tie-breaker.
 - Data: group by `(model, data_type)`.
 - Pick the best candidate only, ranking by code/data similarity then name.
-- If a model was renamed and the field/method keeps its name, model
-  lineage covers it: no extra timeline.
+- If a model was renamed and the field/method keeps its name, a
+  **confirmed** model timeline covers it: no extra timeline.
 - If the field/method name or target model changes, use
   `next_name`/`next_model`.
 
@@ -214,6 +280,8 @@ High confidence:
 
 - explicit OpenUpgrade/apriori/migration-script rename;
 - explicit Odoo/OCA rename commit;
+- closed/merged target-branch PR whose title, body or comments explicitly
+  state the old and new module names;
 - identical normalized code/data, unique structural match, meaningful
   name relation;
 - a data record follows an explicit model rename and its group/permissions
@@ -256,10 +324,12 @@ Before creating:
 - Verify the source is still absent. If the old XML ID still exists, the
   data move is invalid; if a model/field/method name was reintroduced,
   review before linking.
-- **Run the same-module gate.** Search the target element in the source
-  module at the target version and fetch the source model details. If the
-  source `inherit` is non-empty, or a same-module target exists, link to
-  the same-module element. Do this before `confirm=True`. See
+- **Run the same-module gate** for models/fields/methods. Search the
+  target element in the source module at the target version and fetch the
+  source model details. If a same-module target exists, link to it. If
+  the source `inherit` is non-empty and no same-module target exists,
+  report an extension removal or review; do not link to the base model
+  without a commit. Do this before `confirm=True`. See
   `references/audit-report.md`.
 
 Note format:
@@ -286,8 +356,16 @@ A confirmed timeline can later receive a **note-only** update. Pass only
 Run `references/audit-report.md` before reporting:
 
 - every confirmed move resolves with `code_get_next_version_element`;
+  use `code_get_element_lineage` or `code_get_elements_lineage` for a
+  full chain;
 - cross-module targets pass the same-module check;
-- no old source name/XML ID still exists in the target;
+- no old data XML ID still resolves in the target; reintroduced
+  model/field/method names are recorded as `same_name_continuation` and
+  reviewed;
+- every confirmed module target exists at its first scanned version, and
+  the source module is absent from the target branch;
+- scan-gap notes state the target's first scanned version when it is later
+  than `starting_version`;
 - every note has the tag, a `<ul>` Source section, and working URLs.
 
 ### Step 9 — report
@@ -301,17 +379,18 @@ classification counts, audit findings, and reported/uncertain items.
 For `base`, `mail`, `hr`, or a module with hundreds/thousands of absent
 elements:
 
-1. Create model timelines first; model lineage resolves same-name fields
-   and methods.
+1. Create model timelines first; confirmed model lineage resolves
+   same-name fields and methods.
 2. Re-list absent fields/methods and record the new snapshot.
-3. Map explicit field renames from migration scripts, `_inherits`, and
-   column renames.
+3. Map explicit field renames from migration scripts and column renames;
+   handle delegated models via the target model's `inherits`.
 4. Map data renames/deletions from `_xmlids_renames` / `_deleted_xmlids`.
 5. Run the method body scan only on the remaining methods.
-6. Fetch all data elements once and build a `name -> {data_type,
-   noupdate, is_override}` map. Create per-record timelines for structural
-   records with element-specific evidence; report population/reference
-   data and large mechanical sets as datasets.
+6. Fetch all data elements once and build a full-XML-ID map
+   (`name` in the absent list, `xml_id` in `code_search_elements`) to
+   `{data_type, noupdate, is_override}`. Create per-record timelines for
+   structural records with element-specific evidence; report
+   population/reference data and large mechanical sets as datasets.
 
 ## Timeline type
 
@@ -319,6 +398,7 @@ elements:
 |---|---|
 | 1:1 module rename | `renamed` |
 | Module merged into an existing module | `replaced` |
+| OCA module absorbed into core | `replaced`; core module as `new_module` |
 | Module split (source survives) | no module timeline; `moved` + `next_module` |
 | Module deleted with no successor | no module timeline; report |
 | Model/field/method/data renamed or replaced | `moved` |
@@ -327,12 +407,16 @@ elements:
 | Several sources merged into one target | one `moved` per source |
 | One source split into several targets | primary target + note |
 
+An OCA module absorbed into core uses `replaced` even though no module
+with the source name exists in core; the successor is the core module
+named by `apriori.py`.
+
 ## Reference map
 
 | Need | Read |
 |---|---|
 | Tool signatures, gotchas, note format | `references/mca-tools.md` |
-| OpenUpgrade/git evidence, source URLs, clone tips | `references/evidence-sources.md` |
+| OpenUpgrade/git/PR evidence, source URLs, clone tips | `references/evidence-sources.md` |
 | Field/data/model matching, thresholds, population data | `references/matching-heuristics.md` |
 | Method scanner, AST rules, false positives | `references/method-matching.md` |
 | Same-module gate, audit, report template | `references/audit-report.md` |

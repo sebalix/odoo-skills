@@ -38,6 +38,7 @@ Cross-model and cross-module searches:
                                        same model (extension methods)
   --min-name-ratio 0.5                 flag exact bodies with an unrelated
                                        name as exact_unrelated_name
+                                       (this is the default)
   --flag-target-existing-in-source     flag a candidate that already exists
                                        as a sibling in the source version
                                        (advisory; confirm only with a commit
@@ -322,10 +323,11 @@ def main() -> int:
     parser.add_argument(
         "--min-name-ratio",
         type=float,
-        default=0.0,
+        default=0.5,
         help=(
             "For an exact body, require this minimum name similarity; "
-            "below it the status becomes exact_unrelated_name"
+            "below it the status becomes exact_unrelated_name "
+            "(default: 0.5; use 0 to disable)"
         ),
     )
     parser.add_argument(

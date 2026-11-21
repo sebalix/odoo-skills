@@ -94,10 +94,11 @@ removed, but the status label is not authoritative.
 
 When the source model is renamed or merged, resolve the target model in
 the source module first. If it exists there, use it; only fall back to the
-base model when the source module has no target element. A non-empty
-`inherit` (`code_get_element_details`) makes this mandatory for an
-extension. The same rule applies to the method's `next_model` in a
-timeline.
+base model when the source module has no target element and the source is
+not an extension. A non-empty `inherit` (`code_get_element_details`)
+makes the same-module rule mandatory; an extension with no same-module
+target is an extension removal or a review. The same rule applies to the
+method's `next_model` in a timeline.
 
 ## Step 2 — parse the exact scanned trees
 
@@ -265,8 +266,9 @@ Optional:
   `project.project.action_create_invoice`);
 - `--search-modules stock_account,account` to also search base modules
   for an extension method;
-- `--min-name-ratio 0.5` to flag exact bodies with unrelated names as
-  `exact_unrelated_name` instead of `exact`;
+- `--min-name-ratio 0.5` (default) flags exact bodies with unrelated
+  names as `exact_unrelated_name` instead of `exact`; pass `0` to
+  disable;
 - `--flag-target-existing-in-source` (formerly
   `--reject-target-existing-in-source`) to report a candidate that already
   exists as a sibling in the source version as `target_exists_in_source`.
