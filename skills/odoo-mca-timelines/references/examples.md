@@ -93,17 +93,32 @@ inheritance. Re-search the exact model/name in the MCA; for example
 `_sms_get_number_fields` was reported as `sms/base` while the MCA target
 is `sms/mail.thread.phone`.
 
-## Bulk data sets
+## Population data sets
 
-Report these as one dataset:
+Report these as one dataset, no per-record timelines:
 
 - `l10n_fr` 17.0 -> 18.0: 2,813 chart-template/report records moving to
   `l10n_fr_account`.
-- `payment` 19.0 -> 20.0: 229 `payment.method` records; 16 are explicitly
-  deleted, the rest are population data.
-- `hr_timesheet` 15.0 -> 16.0: 360 demo `account.analytic.line` records.
-- `sale_timesheet` 15.0 -> 16.0: 150 demo analytic lines.
-- `point_of_sale` 19.0 -> 20.0: ACL/access-rights records.
+- country/state/language/currency rows moved from `l10n_*` to `base`.
+- chart templates, tax/report population lines.
+- large mechanical sets without element-specific evidence (e.g. 360 demo
+  `account.analytic.line` records in `hr_timesheet`, 150 in
+  `sale_timesheet`).
+
+## Structural data timelines
+
+Per-record timelines are appropriate when there is element-specific
+evidence:
+
+- ACLs/rules, including `ir.model.access`/`ir.rule` -> `ir.access`
+  conversions, because custom modules override them;
+- menus, actions, views/report templates, groups, payment
+  methods/providers;
+- UoM records and categories (`uom.uom`, `uom.category`): custom modules
+  extend them, and the 19.0 UoM refactor renames/removes many of them;
+- demo records (real XML IDs, occasionally referenced by custom demo
+  modules);
+- `noupdate` records with explicit rename/move evidence.
 
 ## Apriori key quirk
 
@@ -115,8 +130,8 @@ Strip keys before lookup, or the `gift_card` -> `loyalty` merge is missed.
 `phone_validation`:
 
 - `phone_validation.access_phone_blacklist_all` is part of the 20.0
-  `ir.model.access` -> `ir.access` conversion: report in bulk, no
-  per-record timeline.
+  `ir.model.access` -> `ir.access` conversion: create the per-record
+  timeline when the mapping is explicit (custom modules may override it).
 - `_phone_sanitized_search_index_exists` and
   `_onchange_phone_validation` are removed with no successor: report, no
   method timeline. The scanner labelled the latter `model_removed` even
@@ -139,6 +154,7 @@ Strip keys before lookup, or the `gift_card` -> `loyalty` merge is missed.
 - `calendar.popover.delete.wizard.delete` -> `requested_action` is not a
   rename (different selection values); report.
 - The provider-config fields/methods/ACLs/views are covered by the
-  confirmed model removal; report them in bulk.
+  confirmed model removal; create per-record ACL/view timelines only when
+  the evidence is element-specific, otherwise report the set.
 - The delete-wizard ACL/view/action changes are explicit in commit
-  `2a9413ea4def`, but they are ACL/view/action records: report in bulk.
+  `2a9413ea4def`; per-record timelines may be created for them.

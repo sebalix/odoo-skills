@@ -116,25 +116,29 @@ Return a compact report:
   continuations.
 - source audit: notes whose cited OpenUpgrade file does not contain the
   element, with the corrected note.
-- skipped already-existing; reported demo/noupdate/override/extension
-  removals; uncertain candidates and why they were not created.
-- bulk data sets reported rather than drafted.
+- skipped already-existing; reported population/reference datasets and
+  override/extension removals; uncertain candidates and why they were not
+  created.
+- population/reference datasets reported rather than drafted.
 - tool limitations and MCA data-quality gaps.
 
-## 6. Bulk reporting
+## 6. Population data reporting
 
 Report as one dataset, not per record:
 
-- ACLs, access rights, and `ir.model.access` -> `ir.access` migrations;
-- asset bundles;
-- demo and `noupdate` records;
 - country/state/language/currency population data moved from `l10n_*` to
   `base`;
-- chart templates, tax/report lines, payment-method population data;
-- views/actions/menus tied to a removed model.
+- chart templates, tax/report population lines;
+- asset bundles and generated technical records;
+- large mechanical sets without element-specific evidence (e.g. hundreds
+  of demo lines or generated views).
 
-Create the model timeline(s) and report the records in bulk. Per-record
-removals only for structural records a migration script must handle.
+Structural XML records that custom modules can override may get per-record
+timelines when element-specific evidence exists: ACLs/rules
+(`ir.model.access`, `ir.rule`, `ir.access`), menus, actions, views/report
+templates, groups, payment methods/providers, UoM records and categories,
+and demo records. Create the model/module timeline first, then the
+per-record links.
 
 ## Worked examples
 

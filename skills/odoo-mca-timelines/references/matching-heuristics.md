@@ -17,19 +17,25 @@ Record the `counts` from the unfiltered call for the report.
 For data, the server only lists records loaded by the module. Classify
 the rest before matching:
 
-- `data_type="demo"`: report only;
 - `is_override=True`: report an extension removal, not a removal;
-- `noupdate=True`: report it unless explicit deletion, rename or move
-  evidence exists;
-- structural records: `data_type="data"`, `noupdate=False`,
-  `is_override=False`.
+- `data_type="demo"` / `noupdate=True`: allowed when explicit deletion,
+  rename or move evidence exists; these are real XML IDs and may be
+  referenced by custom modules;
+- structural records (`data_type="data"`, `noupdate=False`,
+  `is_override=False`): normal matching;
+- population/reference records (country, state, language, currency, chart
+  templates, tax/report lines): report the dataset, no per-record
+  timelines. UoM records and categories are **not** population data here:
+  custom modules extend them, so keep per-record timelines when the
+  evidence exists.
 
 For a large module, fetch all data elements once per module/version and
 build a `name -> {data_type, noupdate, is_override}` map in memory instead
 of calling `code_get_element_details` per record. This makes it cheap to
-separate structural records from the bulk demo/noupdate/override sets
-(e.g. the 2,813 `l10n_fr` chart/report records, the 229 `payment.method`
-records, or the 360 demo analytic lines in `hr_timesheet`).
+separate structural records from population data and large mechanical sets
+(e.g. the 2,813 `l10n_fr` chart/report records, or the 360 demo analytic
+lines in `hr_timesheet`). Do not create hundreds of mechanical links:
+require element-specific evidence per record.
 
 Then fetch the target candidates once per `(version, module,
 element_type)` with `code_search_elements`, scoped to the modules/models
@@ -249,7 +255,8 @@ downgraded.
 - Access rights consolidated into fewer records: several `moved`
   timelines to the same target. A true split (one source -> several
   targets) is a primary target + note, not a single rename.
-- A data record reassigned to a different model: reject.
+- A data record reassigned to a different model without explicit evidence:
+  reject.
 - A data record whose old XML ID still resolves in the target version:
   reject the move. This caught `l10n_fr.dom-tom` and
   `point_of_sale.product_product_consumable`.
@@ -291,21 +298,22 @@ Do not create `removed` for:
   module, typically `base`);
 - a data record with `is_override=True` (it overrides another module's
   record);
-- a demo record (`data_type="demo"`);
+- a demo record without an explicit `DEL`/deletion-list entry; demo
+  records may be timed when the removal is explicit;
 - a `noupdate=True` record without explicit deletion, rename or move
   evidence: existing databases keep it;
 - a method unless its model or feature is explicitly removed and it has no
   successor: report method disappearances in bulk, do not draft hundreds
   of removals;
-- technical data in bulk (asset bundles, ACLs, tracking/demo records);
-- an access-rights record when the target replaces `ir.model.access` with
-  `ir.access` (20.0): create the model timeline(s) and report the access
-  records in bulk, not as per-record moves;
+- generated technical data in bulk (asset bundles, tracking records);
 - country/state/language/currency population data moved from `l10n_*`
   modules into `base`: the source module is the `l10n_*` module, so do not
   create base timelines for those records;
-- views, actions, menus, and ACLs tied to a removed model: report them in
-  bulk; the model removal is the migration signal.
+- population/reference rows such as chart templates and tax/report lines;
+- a large mechanical set without element-specific evidence: report the
+  set; ACLs/rules, menus, actions, views/report templates, groups, payment
+  records, UoM records and categories, and demo records may get per-record
+  timelines when the evidence is element-specific.
 
 For a merge with a known target, create one `moved` timeline per source
 pointing to the same target; a merge is not a removal. For a module merge,

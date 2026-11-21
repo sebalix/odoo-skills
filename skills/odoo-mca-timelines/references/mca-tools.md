@@ -271,13 +271,16 @@ from `xml_id`, never from `name`, when comparing against a timeline.
   removals.
 - Data elements are always restricted to loaded records. Classify them
   with the filters and output fields:
-  - `data_type="demo"`: report only;
   - `is_override=True`: an override of another module's record, report
     an extension removal;
-  - `noupdate=True`: existing databases keep the record; report it
-    unless explicit deletion, rename or move evidence exists;
-  - structural records: `data_type="data"`, `noupdate=False`,
-    `is_override=False`.
+  - `data_type="demo"` / `noupdate=True`: may be matched when explicit
+    deletion, rename or move evidence exists;
+  - structural records (`data_type="data"`, `noupdate=False`,
+    `is_override=False`): normal matching;
+  - population/reference records (country, state, language, currency,
+    chart templates, tax/report lines): report the dataset;
+  - UoM records/categories are structural: keep per-record timelines when
+    the evidence exists.
 - For model elements, a non-empty `next_defined_in` means the model still
   exists in another module (typically `base`): report an extension
   removal, not a model removal.

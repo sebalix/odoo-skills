@@ -89,9 +89,16 @@ Check the environment:
 - **Prefer `moved` over `removed`.** Create `removed` only for explicit
   deletions or elements with no successor. Report uncertain
   disappearances instead of flooding the MCA.
-- **Do not flood the MCA with bulk data.** Report ACLs, access rights,
-  asset bundles, demo/noupdate records, and population data (country,
-  state, language, chart templates, payment methods) in bulk.
+- **Do not create timelines for population/reference data.** Report
+  country, state, language, currency, chart templates, tax/report
+  population lines, and generated asset bundles as datasets. Structural
+  XML records that custom modules can override — ACLs/rules
+  (`ir.model.access`, `ir.rule`, `ir.access`), menus, actions,
+  views/report templates, groups, payment methods/providers, UoM records
+  and categories, and demo records — may get per-record timelines when
+  element-specific rename/move/deletion evidence exists. For large
+  mechanical sets without per-record evidence, report the set instead of
+  drafting hundreds of links.
 - **Classify methods separately.** OpenUpgrade never lists methods. Do not
   infer a method rename from a field rename.
 - **One best candidate.** When several elements could match, create the
@@ -145,9 +152,17 @@ limited to records loaded by the module.
 Worklists:
 
 - `timeline_state="none"` for analysis;
-- data structural records: `element_type="data"`, `data_type="data"`,
-  `noupdate=False`, `is_override=False`;
-- reporting: `data_type="demo"`, `is_override=True`, `noupdate=True`;
+- structural data records: `element_type="data"`, `data_type="data"`,
+  `noupdate=False`, `is_override=False` (excluding the population/reference
+  records below);
+- data that may get per-record timelines with element-specific evidence:
+  `data_type="demo"` and `noupdate=True` (ACLs, rules, menus, actions,
+  views/report templates, groups, payment records, UoM records and
+  categories, demo records);
+- report an extension removal: `is_override=True`;
+- report as a dataset, no per-record timelines: population/reference
+  records (country, state, language, currency, chart templates, tax/report
+  lines) and large mechanical sets without element-specific evidence;
 - review: `timeline_state="draft"`; removals: `timeline_type="removed"`.
 
 `counts.moved` normally stays 0: moved elements leave the absent list.
@@ -159,10 +174,12 @@ resolve the actual target with `code_get_next_version_element` /
 
 1. Call `code_get_next_version_element` first. `state="available"` means
    skip; a draft means review it instead of creating a duplicate.
-2. Classify before matching: demo -> report; override -> report an
-   extension removal; `noupdate=True` -> report unless explicit
-   deletion/rename/move evidence exists; model with non-empty
-   `next_defined_in` -> report an extension removal.
+2. Classify before matching: demo and `noupdate=True` records may be
+   matched when explicit deletion/rename/move evidence exists (they are
+   real XML IDs that custom modules can reference); override -> report an
+   extension removal; population/reference data -> report the dataset;
+   model with non-empty `next_defined_in` -> report an extension removal.
+   For large mechanical sets without per-record evidence, report the set.
 3. Build the model rename map from apriori, analysis, and migration
    scripts.
 4. Fetch target candidates once per `(version, module, element_type)`.
@@ -291,9 +308,10 @@ elements:
    column renames.
 4. Map data renames/deletions from `_xmlids_renames` / `_deleted_xmlids`.
 5. Run the method body scan only on the remaining methods.
-6. Report bulk data sets instead of per-record removals; fetch all data
-   elements once and build a `name -> {data_type, noupdate, is_override}`
-   map.
+6. Fetch all data elements once and build a `name -> {data_type,
+   noupdate, is_override}` map. Create per-record timelines for structural
+   records with element-specific evidence; report population/reference
+   data and large mechanical sets as datasets.
 
 ## Timeline type
 
@@ -315,7 +333,7 @@ elements:
 |---|---|
 | Tool signatures, gotchas, note format | `references/mca-tools.md` |
 | OpenUpgrade/git evidence, source URLs, clone tips | `references/evidence-sources.md` |
-| Field/data/model matching, thresholds, bulk data | `references/matching-heuristics.md` |
+| Field/data/model matching, thresholds, population data | `references/matching-heuristics.md` |
 | Method scanner, AST rules, false positives | `references/method-matching.md` |
 | Same-module gate, audit, report template | `references/audit-report.md` |
 | Worked examples from real runs | `references/examples.md` |
